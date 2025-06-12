@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>نظام عهدة الكشافة</title>
+    
+    <!-- Bootstrap CSS 4.5.2 -->
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Main Heading -->
+        <div class="row">
+            <div class="col-12 text-center">
+                <h1 class="mt-4 mb-4">نظام عهدة كشافة</h1>
+            </div>
+        </div>
+
+        <!-- Authentication Section -->
+        <div id="auth-section" class="hidden">
+            <div class="row justify-content-center">
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header text-center">
+                            <h3>تسجيل الدخول</h3>
+                        </div>
+                        <div class="card-body">
+                            <form id="login-form">
+                                <div class="form-group">
+                                    <label for="login-email">البريد الالكتروني:</label>
+                                    <input type="email" class="form-control" id="login-email" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="login-password">كلمة السر:</label>
+                                    <input type="password" class="form-control" id="login-password" required>
+                                </div>
+                                <button type="submit" class="btn btn-primary btn-block">تسجيل دخول</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Admin Section -->
+        <div id="admin-section" class="hidden">
+            <div class="row">
+                <div class="col-12">
+                    <div class="d-flex justify-content-between align-items-center mb-4">
+                        <h2>وحدة التحكم</h2>
+                        <button id="logout-admin" class="btn btn-outline-danger">تسجيل خروج</button>
+                    </div>
+                    
+                    <!-- Admin Management Buttons -->
+                    <div class="row mb-4">
+                        <div class="col-12">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h4>إدارة النظام</h4>
+                                </div>
+                                <div class="card-body">
+                                    <div class="btn-group" role="group">
+                                        <button id="create-user-btn" class="btn btn-success ml-2">اضافة مستخدم جديد</button>
+                                        <button id="manage-users-btn" class="btn btn-info ml-2">إدارة المستخدمين</button>
+                                        <button id="switch-user-mode-btn" class="btn btn-secondary">نظام الطلبات</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Add Product Section -->
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h3>اضافة منتج</h3>
+                        </div>
+                        <div class="card-body">
+                            <form id="product-form">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="form-group">
+                                            <label for="product-name-en">الاسم بالانجليزي:</label>
+                                            <input type="text" class="form-control" id="product-name-en" required>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="form-group">
+                                            <label for="product-name-ar">الاسم بالعربي:</label>
+                                            <input type="text" class="form-control" id="product-name-ar" required>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="form-group">
+                                            <label for="product-counter">العدد بالعهدة:</label>
+                                            <input type="number" class="form-control" id="product-counter" min="0" required>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="form-group">
+                                            <label for="product-image">صورة العهدة:</label>
+                                            <input type="file" class="form-control-file" id="product-image" accept="image/*">
+                                        </div>
+                                    </div>
+                                </div>
+                                <button type="submit" class="btn btn-primary">اضافة العهدة</button>
+                            </form>
+                        </div>
+                    </div>
+
+                    <!-- Products Table Section -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>المنتجات</h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table id="products-table" class="table table-striped">
+                                    <thead>
+                                        <tr>
+                                            <th>الصورة</th>
+                                            <th>الاسم بالانجليزي</th>
+                                            <th>الاسم بالعربي</th>
+                                            <th>العدد</th>
+                                            <th>الاختيارات</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="products-table-body">
+                                        <!-- Dynamic content will be loaded here -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Edit Product Modal -->
+        <div id="edit-product-modal" class="modal hidden">
+            <div class="modal-content">
+                <span class="close">&times;</span>
+                <h3>تعديل منتج</h3>
+                <form id="edit-product-form">
+                    <div class="form-group">
+                        <label for="edit-product-name-en">الاسم بالانجليزي:</label>
+                        <input type="text" class="form-control" id="edit-product-name-en" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="edit-product-name-ar">الاسم بالعربي:</label>
+                        <input type="text" class="form-control" id="edit-product-name-ar" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="edit-product-counter">العدد بالعهدة:</label>
+                        <input type="number" class="form-control" id="edit-product-counter" min="0" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="edit-product-image">صورة العهدة (اختياري):</label>
+                        <input type="file" class="form-control-file" id="edit-product-image" accept="image/*">
+                        <small class="form-text text-muted">اتركه فارغاً للاحتفاظ بالصورة الحالية</small>
+                    </div>
+                    <button type="submit" class="btn btn-primary">تحديث</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Create User Modal -->
+        <div id="create-user-modal" class="modal hidden">
+            <div class="modal-content">
+                <span class="close">&times;</span>
+                <h3>Create New User</h3>
+                <form id="create-user-form">
+                    <div class="form-group">
+                        <label for="new-user-email">البريد الالكتروني:</label>
+                        <input type="email" class="form-control" id="new-user-email" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="new-user-password">كلمة السر:</label>
+                        <input type="password" class="form-control" id="new-user-password" required minlength="6">
+                    </div>
+                    <div class="form-group">
+                        <label for="new-user-role">الدور:</label>
+                        <select class="form-control" id="new-user-role" required>
+                            <option value="">اختر الدور</option>
+                            <option value="user">مستخدم</option>
+                            <option value="admin">مدير</option>
+                            <option value="superadmin">مدير عام</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="btn btn-primary">اضافة المستخدم</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- User Section -->
+        <div id="user-section" class="hidden">
+            <div class="row">
+                <div class="col-12">
+                    <div class="d-flex justify-content-between align-items-center mb-4">
+                        <h2>نظام الطلبات</h2>
+                        <div>
+                            <button id="return-to-admin-btn" class="btn btn-outline-primary ml-2 hidden">العودة للوحة التحكم</button>
+                            <button id="logout-user" class="btn btn-outline-danger">تسجيل الخروج</button>
+                        </div>
+                    </div>
+                    
+                    <!-- Search Bar -->
+                    <div class="card mb-4">
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-8">
+                                    <input type="text" class="form-control" id="search-input" placeholder="البحث عن المنتجات بالاسم...">
+                                </div>
+                                <div class="col-md-4">
+                                    <button id="reset-search-btn" class="btn btn-outline-secondary btn-block">مسح البحث</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Products Section -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>المنتجات المتاحة</h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="row" id="user-products">
+                                <!-- Dynamic product cards will be loaded here -->
+                            </div>
+                            
+                            <!-- Pagination Controls -->
+                            <div class="row mt-4">
+                                <div class="col-12">
+                                    <nav aria-label="Product pagination">
+                                        <ul class="pagination justify-content-center" id="pagination-controls">
+                                            <!-- Pagination buttons will be generated here -->
+                                        </ul>
+                                    </nav>
+                                    <div class="text-center text-muted">
+                                        <small id="pagination-info">جاري التحميل...</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- User Management Modal -->
+        <div id="manage-users-modal" class="modal hidden">
+            <div class="modal-content" style="max-width: 900px;">
+                <span class="close">&times;</span>
+                <h3>إدارة المستخدمين</h3>
+                <div class="mb-3">
+                    <button id="refresh-users-btn" class="btn btn-secondary">تحديث القائمة</button>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>البريد الإلكتروني</th>
+                                <th>الدور</th>
+                                <th>تاريخ الإنشاء</th>
+                                <th>الإجراءات</th>
+                            </tr>
+                        </thead>
+                        <tbody id="users-table-body">
+                            <tr>
+                                <td colspan="4" class="text-center">جاري التحميل...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Edit User Role Modal -->
+        <div id="edit-user-modal" class="modal hidden">
+            <div class="modal-content">
+                <span class="close">&times;</span>
+                <h3>تعديل دور المستخدم</h3>
+                <form id="edit-user-form">
+                    <div class="form-group">
+                        <label for="edit-user-email">البريد الإلكتروني:</label>
+                        <input type="email" class="form-control" id="edit-user-email" readonly>
+                    </div>
+                    <div class="form-group">
+                        <label for="edit-user-role">الدور الجديد:</label>
+                        <select class="form-control" id="edit-user-role" required>
+                            <option value="user">مستخدم</option>
+                            <option value="admin">مدير</option>
+                            <option value="superadmin">مدير عام</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="btn btn-primary">تحديث الدور</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Toast Notification Container -->
+        <div aria-live="polite" aria-atomic="true" style="position: relative; min-height: 200px;">
+            <div id="toast-container" style="position: absolute; top: 0; right: 0;"></div>
+        </div>
+    </div>
+
+    <!-- Firebase SDKs (version 8.x) - Load FIRST -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-storage.js"></script>
+    
+    <!-- jQuery -->
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <!-- Popper.js -->
+    <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.1/dist/umd/popper.min.js"></script>
+    <!-- Bootstrap JS -->
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    
+    <!-- Custom JavaScript - Load AFTER Firebase -->
+    <script src="script.js"></script>
+</body>
+</html> 
