@@ -122,6 +122,7 @@ const editUserModal = document.getElementById('edit-user-modal');
 const editUserForm = document.getElementById('edit-user-form');
 const editUserEmail = document.getElementById('edit-user-email');
 const editUserRole = document.getElementById('edit-user-role');
+const goToDashboardBtn = document.getElementById('go-to-dashboard-btn');
 const switchUserModeBtn = document.getElementById('switch-user-mode-btn');
 const returnToAdminBtn = document.getElementById('return-to-admin-btn');
 
@@ -1885,6 +1886,13 @@ if (switchUserModeBtn) {
     switchUserModeBtn.addEventListener('click', () => {
         showUserSection();
         showToast('التبديل إلى وضع المستخدم.', 'info');
+    });
+}
+
+// Go to Dashboard Button Event Listener
+if (goToDashboardBtn) {
+    goToDashboardBtn.addEventListener('click', () => {
+        window.location.href = 'admin_dashboard.html';
     });
 }
 
