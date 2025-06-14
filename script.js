@@ -136,6 +136,29 @@ const goToDashboardBtn = document.getElementById('go-to-dashboard-btn');
 const switchUserModeBtn = document.getElementById('switch-user-mode-btn');
 const returnToAdminBtn = document.getElementById('return-to-admin-btn');
 
+// Mobile Admin Control Buttons
+const createUserBtnMobile = document.getElementById('create-user-btn-mobile');
+const manageUsersBtnMobile = document.getElementById('manage-users-btn-mobile');
+const goToDashboardBtnMobile = document.getElementById('go-to-dashboard-btn-mobile');
+const switchUserModeBtnMobile = document.getElementById('switch-user-mode-btn-mobile');
+
+// Mobile Burger Menu Elements
+const burgerMenuBtn = document.getElementById('burger-menu-btn');
+const mobileMenu = document.getElementById('mobile-menu');
+const mobileMenuOverlay = document.getElementById('mobile-menu-overlay');
+const mobileMenuClose = document.getElementById('mobile-menu-close');
+const viewProfileBtnMobile = document.getElementById('view-profile-btn-mobile');
+const logoutAdminMobile = document.getElementById('logout-admin-mobile');
+
+// User Mobile Burger Menu Elements
+const userBurgerMenuBtn = document.getElementById('user-burger-menu-btn');
+const userMobileMenu = document.getElementById('user-mobile-menu');
+const userMobileMenuOverlay = document.getElementById('user-mobile-menu-overlay');
+const userMobileMenuClose = document.getElementById('user-mobile-menu-close');
+const viewProfileBtnUserMobile = document.getElementById('view-profile-btn-user-mobile');
+const returnToAdminBtnMobile = document.getElementById('return-to-admin-btn-mobile');
+const logoutUserMobile = document.getElementById('logout-user-mobile');
+
 // Pagination Elements
 const paginationControls = document.getElementById('pagination-controls');
 const paginationInfo = document.getElementById('pagination-info');
@@ -4775,3 +4798,205 @@ function testProfileImageInput() {
 
 // Make test function available globally for debugging
 window.testProfileImageInput = testProfileImageInput;
+
+// Go to Dashboard Button Event Listener
+if (goToDashboardBtn) {
+    goToDashboardBtn.addEventListener('click', () => {
+        window.location.href = 'admin_dashboard.html';
+    });
+}
+
+// Mobile Admin Control Button Event Listeners
+// Create User Button Mobile Event Listener
+if (createUserBtnMobile) {
+    createUserBtnMobile.addEventListener('click', () => {
+        closeMobileMenu();
+        showModal(createUserModal);
+        // Load roles when modal opens to ensure dropdown is populated
+        loadRoles();
+        // Focus on email field for better UX
+        setTimeout(() => {
+            if (newUserEmail) {
+                newUserEmail.focus();
+            }
+        }, 300);
+    });
+}
+
+// Manage Users Button Mobile Event Listener
+if (manageUsersBtnMobile) {
+    manageUsersBtnMobile.addEventListener('click', () => {
+        closeMobileMenu();
+        showModal(manageUsersModal);
+        loadUsers(); // Load users when modal opens
+    });
+}
+
+// Go to Dashboard Button Mobile Event Listener
+if (goToDashboardBtnMobile) {
+    goToDashboardBtnMobile.addEventListener('click', () => {
+        closeMobileMenu();
+        window.location.href = 'admin_dashboard.html';
+    });
+}
+
+// Switch to User Mode Button Mobile Event Listener
+if (switchUserModeBtnMobile) {
+    switchUserModeBtnMobile.addEventListener('click', () => {
+        closeMobileMenu();
+        showUserSection();
+        showToast('التبديل إلى وضع المستخدم.', 'info');
+    });
+}
+
+// Mobile Burger Menu Functionality
+function openMobileMenu() {
+    if (mobileMenu && mobileMenuOverlay && burgerMenuBtn) {
+        mobileMenu.classList.add('active');
+        mobileMenuOverlay.classList.add('active');
+        burgerMenuBtn.classList.add('active');
+        document.body.classList.add('mobile-menu-open');
+    }
+}
+
+function closeMobileMenu() {
+    if (mobileMenu && mobileMenuOverlay && burgerMenuBtn) {
+        mobileMenu.classList.remove('active');
+        mobileMenuOverlay.classList.remove('active');
+        burgerMenuBtn.classList.remove('active');
+        document.body.classList.remove('mobile-menu-open');
+    }
+}
+
+// Burger Menu Event Listeners
+if (burgerMenuBtn) {
+    burgerMenuBtn.addEventListener('click', () => {
+        if (mobileMenu.classList.contains('active')) {
+            closeMobileMenu();
+        } else {
+            openMobileMenu();
+        }
+    });
+}
+
+if (mobileMenuClose) {
+    mobileMenuClose.addEventListener('click', closeMobileMenu);
+}
+
+if (mobileMenuOverlay) {
+    mobileMenuOverlay.addEventListener('click', closeMobileMenu);
+}
+
+// Mobile Profile and Logout Button Event Listeners
+if (viewProfileBtnMobile) {
+    viewProfileBtnMobile.addEventListener('click', () => {
+        closeMobileMenu();
+        if (viewProfileBtn) {
+            viewProfileBtn.click();
+        }
+    });
+}
+
+if (logoutAdminMobile) {
+    logoutAdminMobile.addEventListener('click', () => {
+        closeMobileMenu();
+        if (logoutAdmin) {
+            logoutAdmin.click();
+        }
+    });
+}
+
+// Close mobile menu when pressing Escape key
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && mobileMenu && mobileMenu.classList.contains('active')) {
+        closeMobileMenu();
+    }
+});
+
+// Close mobile menu when window is resized to desktop size
+window.addEventListener('resize', () => {
+    if (window.innerWidth >= 992 && mobileMenu && mobileMenu.classList.contains('active')) {
+        closeMobileMenu();
+    }
+    if (window.innerWidth >= 992 && userMobileMenu && userMobileMenu.classList.contains('active')) {
+        closeUserMobileMenu();
+    }
+});
+
+// User Mobile Burger Menu Functionality
+function openUserMobileMenu() {
+    if (userMobileMenu && userMobileMenuOverlay && userBurgerMenuBtn) {
+        userMobileMenu.classList.add('active');
+        userMobileMenuOverlay.classList.add('active');
+        userBurgerMenuBtn.classList.add('active');
+        document.body.classList.add('mobile-menu-open');
+    }
+}
+
+function closeUserMobileMenu() {
+    if (userMobileMenu && userMobileMenuOverlay && userBurgerMenuBtn) {
+        userMobileMenu.classList.remove('active');
+        userMobileMenuOverlay.classList.remove('active');
+        userBurgerMenuBtn.classList.remove('active');
+        document.body.classList.remove('mobile-menu-open');
+    }
+}
+
+// User Burger Menu Event Listeners
+if (userBurgerMenuBtn) {
+    userBurgerMenuBtn.addEventListener('click', () => {
+        if (userMobileMenu.classList.contains('active')) {
+            closeUserMobileMenu();
+        } else {
+            openUserMobileMenu();
+        }
+    });
+}
+
+if (userMobileMenuClose) {
+    userMobileMenuClose.addEventListener('click', closeUserMobileMenu);
+}
+
+if (userMobileMenuOverlay) {
+    userMobileMenuOverlay.addEventListener('click', closeUserMobileMenu);
+}
+
+// User Mobile Button Event Listeners
+if (viewProfileBtnUserMobile) {
+    viewProfileBtnUserMobile.addEventListener('click', () => {
+        closeUserMobileMenu();
+        if (viewProfileBtnUser) {
+            viewProfileBtnUser.click();
+        }
+    });
+}
+
+if (returnToAdminBtnMobile) {
+    returnToAdminBtnMobile.addEventListener('click', () => {
+        closeUserMobileMenu();
+        if (returnToAdminBtn) {
+            returnToAdminBtn.click();
+        }
+    });
+}
+
+if (logoutUserMobile) {
+    logoutUserMobile.addEventListener('click', () => {
+        closeUserMobileMenu();
+        if (logoutUser) {
+            logoutUser.click();
+        }
+    });
+}
+
+// Update the escape key handler to handle both menus
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+        if (mobileMenu && mobileMenu.classList.contains('active')) {
+            closeMobileMenu();
+        }
+        if (userMobileMenu && userMobileMenu.classList.contains('active')) {
+            closeUserMobileMenu();
+        }
+    }
+});
