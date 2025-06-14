@@ -1883,8 +1883,51 @@ function createUserReservationRow(reservationId, reservationData) {
     const formatDate = (timestamp) => {
         if (!timestamp) return 'غير محدد';
         try {
-            return timestamp.toDate().toLocaleString('ar-EG');
+            let date;
+            
+            // Handle Firestore Timestamp objects
+            if (timestamp && typeof timestamp.toDate === 'function') {
+                date = timestamp.toDate();
+            }
+            // Handle Firestore Timestamp objects with seconds/nanoseconds
+            else if (timestamp && timestamp.seconds) {
+                date = new Date(timestamp.seconds * 1000);
+            }
+            // Handle regular Date objects
+            else if (timestamp instanceof Date) {
+                date = timestamp;
+            }
+            // Handle timestamp numbers (milliseconds)
+            else if (typeof timestamp === 'number') {
+                date = new Date(timestamp);
+            }
+            // Handle timestamp strings
+            else if (typeof timestamp === 'string') {
+                date = new Date(timestamp);
+            }
+            // Handle objects with _seconds property (sometimes Firestore returns this)
+            else if (timestamp && timestamp._seconds) {
+                date = new Date(timestamp._seconds * 1000);
+            }
+            else {
+                return 'غير محدد';
+            }
+            
+            // Validate the date
+            if (isNaN(date.getTime())) {
+                return 'غير محدد';
+            }
+            
+            return date.toLocaleString('ar-EG', {
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit'
+            });
         } catch (e) {
+            console.error('Error formatting date:', e, timestamp);
             return 'غير محدد';
         }
     };
@@ -2029,8 +2072,51 @@ function createAdminReservationRow(reservationId, reservationData) {
     const formatDate = (timestamp) => {
         if (!timestamp) return 'غير محدد';
         try {
-            return timestamp.toDate().toLocaleString('ar-EG');
+            let date;
+            
+            // Handle Firestore Timestamp objects
+            if (timestamp && typeof timestamp.toDate === 'function') {
+                date = timestamp.toDate();
+            }
+            // Handle Firestore Timestamp objects with seconds/nanoseconds
+            else if (timestamp && timestamp.seconds) {
+                date = new Date(timestamp.seconds * 1000);
+            }
+            // Handle regular Date objects
+            else if (timestamp instanceof Date) {
+                date = timestamp;
+            }
+            // Handle timestamp numbers (milliseconds)
+            else if (typeof timestamp === 'number') {
+                date = new Date(timestamp);
+            }
+            // Handle timestamp strings
+            else if (typeof timestamp === 'string') {
+                date = new Date(timestamp);
+            }
+            // Handle objects with _seconds property (sometimes Firestore returns this)
+            else if (timestamp && timestamp._seconds) {
+                date = new Date(timestamp._seconds * 1000);
+            }
+            else {
+                return 'غير محدد';
+            }
+            
+            // Validate the date
+            if (isNaN(date.getTime())) {
+                return 'غير محدد';
+            }
+            
+            return date.toLocaleString('ar-EG', {
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit'
+            });
         } catch (e) {
+            console.error('Error formatting date:', e, timestamp);
             return 'غير محدد';
         }
     };
@@ -2299,8 +2385,51 @@ function viewReservationDetails(reservationId, reservationData) {
     const formatDate = (timestamp) => {
         if (!timestamp) return 'غير محدد';
         try {
-            return timestamp.toDate().toLocaleString('ar-EG');
+            let date;
+            
+            // Handle Firestore Timestamp objects
+            if (timestamp && typeof timestamp.toDate === 'function') {
+                date = timestamp.toDate();
+            }
+            // Handle Firestore Timestamp objects with seconds/nanoseconds
+            else if (timestamp && timestamp.seconds) {
+                date = new Date(timestamp.seconds * 1000);
+            }
+            // Handle regular Date objects
+            else if (timestamp instanceof Date) {
+                date = timestamp;
+            }
+            // Handle timestamp numbers (milliseconds)
+            else if (typeof timestamp === 'number') {
+                date = new Date(timestamp);
+            }
+            // Handle timestamp strings
+            else if (typeof timestamp === 'string') {
+                date = new Date(timestamp);
+            }
+            // Handle objects with _seconds property (sometimes Firestore returns this)
+            else if (timestamp && timestamp._seconds) {
+                date = new Date(timestamp._seconds * 1000);
+            }
+            else {
+                return 'غير محدد';
+            }
+            
+            // Validate the date
+            if (isNaN(date.getTime())) {
+                return 'غير محدد';
+            }
+            
+            return date.toLocaleString('ar-EG', {
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit'
+            });
         } catch (e) {
+            console.error('Error formatting date:', e, timestamp);
             return 'غير محدد';
         }
     };
