@@ -97,6 +97,12 @@ const searchInput = document.getElementById('search-input');
 const resetSearchBtn = document.getElementById('reset-search-btn');
 const userProductsDiv = document.getElementById('user-products');
 
+// Availability Check DOM Elements
+const availabilityStartTime = document.getElementById('availability-start-time');
+const availabilityEndTime = document.getElementById('availability-end-time');
+const checkAvailabilityBtn = document.getElementById('check-availability-btn');
+const availabilityStatus = document.getElementById('availability-status');
+
 // Reservation Tables DOM Elements
 const reservationsTableBody = document.getElementById('reservations-table-body');
 const reservationsApprovalTableBody = document.getElementById('reservations-approval-table-body');
@@ -149,6 +155,11 @@ const PRODUCTS_PER_PAGE = 9;
 
 // Shopping Cart Global Variables
 let currentCart = []; // Array of objects: { productId, productName, quantity, stockAvailable }
+
+// Availability Check Global Variables
+let selectedAvailabilityStart = null;
+let selectedAvailabilityEnd = null;
+let availabilityChecked = false;
 
 // Auth state tracking
 let isAuthStateInitialized = false;
@@ -299,7 +310,11 @@ function showUserSection() {
     searchQuery = '';
     // Clear cart when switching to user section
     currentCart = [];
-    // Load user products when section is shown
+    // Reset availability check
+    availabilityChecked = false;
+    selectedAvailabilityStart = null;
+    selectedAvailabilityEnd = null;
+    // Load user products when section is shown (without availability data initially)
     loadUserProducts();
     // Load user reservations
     loadUserReservations();
@@ -307,6 +322,8 @@ function showUserSection() {
     renderCurrentCart();
     // Show return to admin button if user is admin/superadmin
     checkAndShowReturnButton();
+    // Initialize availability interface
+    initializeAvailabilityInterface();
 }
 
 // Authentication State Change Listener
@@ -521,75 +538,107 @@ if (finalizeRequestForm) {
             completeRequestBtn.disabled = true;
             completeRequestBtn.innerHTML = '<span class="spinner-border spinner-border-sm mr-2"></span>جاري المعالجة...';
             
-            // IMPORTANT: Run automatic stock restoration BEFORE creating the reservation
-            // This ensures stock counts are accurate and expired reservations are processed
-            console.log('🔄 Running automatic stock restoration before creating new reservation...');
-            const restorationResult = await automaticStockRestoration(true); // Silent mode for user interactions
-            console.log('✅ Stock restoration completed:', restorationResult);
+            const requestedStartTime = new Date(startTime);
+            const requestedEndTime = new Date(endTime);
             
-            // Inform user if stock was restored
-            if (restorationResult.processedCount > 0) {
-                showToast(`تم تحديث المخزون: استعادة ${restorationResult.processedCount} طلب منتهي الصلاحية`, 'info');
-            }
+            // STEP 1: Query existing overlapping reservations OUTSIDE the transaction
+            console.log('🔍 Checking for overlapping reservations...');
+            const overlappingReservationsQuery = db.collection('reservations')
+                .where('status', 'in', ['Active', 'Approved']);
             
-            // Create reservation using Firestore transaction
-            const requestRef = db.collection('reservations').doc(); // Auto-generate ID
+            const existingReservationsSnap = await overlappingReservationsQuery.get();
+            
+            // Pre-calculate concurrent reservations for each product
+            const productConcurrentReservations = {};
+            
+            existingReservationsSnap.forEach(resDoc => {
+                const reservationData = resDoc.data();
+                
+                // Check if this reservation overlaps with our requested time period
+                const existingStart = reservationData.reservation_start.toDate();
+                const existingEnd = reservationData.reservation_end.toDate();
+                
+                // Check for overlap: (StartA < EndB) and (EndA > StartB)
+                const hasTimeOverlap = existingStart < requestedEndTime && existingEnd > requestedStartTime;
+                
+                if (hasTimeOverlap) {
+                    // Handle both old and new reservation formats
+                    if (reservationData.items && Array.isArray(reservationData.items)) {
+                        // New multi-item format
+                        reservationData.items.forEach(item => {
+                            if (!productConcurrentReservations[item.productId]) {
+                                productConcurrentReservations[item.productId] = 0;
+                            }
+                            productConcurrentReservations[item.productId] += item.quantity;
+                        });
+                    } else if (reservationData.product_id) {
+                        // Old single-item format (backward compatibility)
+                        if (!productConcurrentReservations[reservationData.product_id]) {
+                            productConcurrentReservations[reservationData.product_id] = 0;
+                        }
+                        productConcurrentReservations[reservationData.product_id] += reservationData.quantity;
+                    }
+                }
+            });
+            
+            console.log('📊 Concurrent reservations by product:', productConcurrentReservations);
+            
+            // STEP 2: Create reservation using Firestore transaction with pre-calculated availability
+            const requestRef = db.collection('reservations').doc();
             
             await db.runTransaction(async (transaction) => {
-                const itemsForFirestore = []; // To store processed items for the reservation document
-                const productRefs = []; // Store product references
-                const productDocs = []; // Store product documents
-                
-                // First, perform ALL reads
+                const itemsForFirestore = [];
+
+                // --- Time-Based Availability Check Logic (using pre-calculated data) ---
                 for (const cartItem of currentCart) {
                     const productRef = db.collection('products').doc(cartItem.productId);
-                    productRefs.push(productRef);
-                    const productDoc = await transaction.get(productRef);
-                    productDocs.push(productDoc);
-                }
-                
-                // Validate all products and prepare data
-                for (let i = 0; i < currentCart.length; i++) {
-                    const cartItem = currentCart[i];
-                    const productDoc = productDocs[i];
-                    
+                    const productDoc = await transaction.get(productRef); // Get total physical stock
+
                     if (!productDoc.exists) {
                         throw new Error(`Product "${cartItem.productName}" not found!`);
                     }
-                    
-                    const currentStock = productDoc.data().stock_count;
-                    if (currentStock < cartItem.quantity) {
-                        throw new Error(`Insufficient stock for "${cartItem.productName}"! Available: ${currentStock}, Requested: ${cartItem.quantity}`);
+                    const totalPhysicalStock = productDoc.data().stock_count;
+
+                    if (cartItem.quantity > totalPhysicalStock) {
+                        throw new Error(`Requested quantity for "${cartItem.productName}" (${cartItem.quantity}) exceeds total physical stock (${totalPhysicalStock}).`);
                     }
-                    
+
+                    // Get concurrent reservations for this product (pre-calculated)
+                    const concurrentReservationsForThisProduct = productConcurrentReservations[cartItem.productId] || 0;
+                    const availableStockDuringPeriod = totalPhysicalStock - concurrentReservationsForThisProduct;
+
+                    console.log(`📦 Product: ${cartItem.productName}`);
+                    console.log(`   Total Physical Stock: ${totalPhysicalStock}`);
+                    console.log(`   Concurrent Reservations: ${concurrentReservationsForThisProduct}`);
+                    console.log(`   Available During Period: ${availableStockDuringPeriod}`);
+                    console.log(`   Requested: ${cartItem.quantity}`);
+
+                    if (cartItem.quantity > availableStockDuringPeriod) {
+                        throw new Error(`Not enough stock for "${cartItem.productName}" during the requested period. Available: ${availableStockDuringPeriod}, Requested: ${cartItem.quantity}.`);
+                    }
+
+                    // NO direct decrement of product.stock_count HERE in this model.
+                    // The `product.stock_count` remains the total physical items.
+                    // Availability is determined by the absence of overlapping reservations up to the totalPhysicalStock.
+
                     itemsForFirestore.push({
                         productId: cartItem.productId,
-                        productNameEn: cartItem.productNameEn, // Denormalized
-                        productNameAr: cartItem.productName, // Denormalized
+                        productNameEn: cartItem.productNameEn,
+                        productNameAr: cartItem.productName,
                         quantity: cartItem.quantity
                     });
-                }
-                
-                // Now perform ALL writes
-                for (let i = 0; i < productRefs.length; i++) {
-                    const productRef = productRefs[i];
-                    const cartItem = currentCart[i];
-                    
-                    transaction.update(productRef, {
-                        stock_count: firebase.firestore.FieldValue.increment(-cartItem.quantity)
-                    });
-                }
-                
-                // Finally, set the main reservation document
+                } // End of for...of currentCart loop
+
+                // Now set the main reservation document (the "request")
                 transaction.set(requestRef, {
                     user_id: auth.currentUser.uid,
-                    user_email: auth.currentUser.email, // Denormalized
-                    items: itemsForFirestore, // Array of reserved items
-                    reservation_start: firebase.firestore.Timestamp.fromDate(startDate),
-                    reservation_end: firebase.firestore.Timestamp.fromDate(endDate),
-                    status: 'Active', // Pending approval
-                    stock_restored_for_items: {}, // Object to track stock restoration per item later
-                    all_items_stock_restored: false, // Overall flag
+                    user_email: auth.currentUser.email,
+                    items: itemsForFirestore,
+                    reservation_start: firebase.firestore.Timestamp.fromDate(requestedStartTime),
+                    reservation_end: firebase.firestore.Timestamp.fromDate(requestedEndTime),
+                    status: 'Active',
+                    stock_restored_for_items: {}, // Initialize as empty
+                    all_items_stock_restored: false,
                     recipient_name: recipientName,
                     recipient_mobile: recipientMobile,
                     unit: unit,
@@ -609,14 +658,14 @@ if (finalizeRequestForm) {
                         }
                     ]
                 });
-            });
-            
-            showToast('تم إنشاء طلب الحجز بنجاح', 'success');
+            }); // End of db.runTransaction
+
+            showToast('تم إنشاء طلب الحجز بنجاح (مع فحص التوافر).', 'success');
             finalizeRequestForm.reset();
             currentCart = []; // Clear the cart
             renderCurrentCart(); // Update UI
             
-            // Optionally, refresh product listings if stock counts on cards need live updates
+            // Refresh product listings and reservations
             loadUserProducts(searchQuery);
             loadUserReservations();
             
@@ -624,7 +673,9 @@ if (finalizeRequestForm) {
             console.error('Error creating reservation:', error);
             let errorMessage = 'خطأ في إنشاء طلب الحجز';
             
-            if (error.message.includes('Insufficient stock for')) {
+            if (error.message.includes('Not enough stock for')) {
+                errorMessage = 'عذراً، ' + error.message;
+            } else if (error.message.includes('Requested quantity for')) {
                 errorMessage = 'عذراً، ' + error.message;
             } else if (error.message.includes('not found!')) {
                 errorMessage = 'أحد المنتجات غير موجود';
@@ -1072,10 +1123,122 @@ document.addEventListener('keydown', (e) => {
 // User Product Management Functions
 
 /**
- * Load and display user products with optional search
- * @param {string} searchQuery - Optional search query
+ * Calculate available stock for products during a specific time period
+ * @param {Date} startTime - Start time of the period
+ * @param {Date} endTime - End time of the period
+ * @returns {Promise<Object>} - Object with productId as key and availability info including reservation details
  */
-function loadUserProducts(searchQuery = '') {
+async function calculateAvailableStock(startTime, endTime) {
+    try {
+        console.log('🔍 Calculating available stock for period:', startTime, 'to', endTime);
+        
+        // Query existing overlapping reservations
+        const overlappingReservationsQuery = db.collection('reservations')
+            .where('status', 'in', ['Active', 'Approved']);
+        
+        const existingReservationsSnap = await overlappingReservationsQuery.get();
+        
+        // Calculate concurrent reservations for each product with detailed reservation info
+        const productConcurrentReservations = {};
+        const productReservationDetails = {}; // New: Store detailed reservation info
+        
+        existingReservationsSnap.forEach(resDoc => {
+            const reservationData = resDoc.data();
+            const reservationId = resDoc.id;
+            
+            // Check if this reservation overlaps with our requested time period
+            const existingStart = reservationData.reservation_start.toDate();
+            const existingEnd = reservationData.reservation_end.toDate();
+            
+            // Check for overlap: (StartA < EndB) and (EndA > StartB)
+            const hasTimeOverlap = existingStart < endTime && existingEnd > startTime;
+            
+            if (hasTimeOverlap) {
+                // Handle both old and new reservation formats
+                if (reservationData.items && Array.isArray(reservationData.items)) {
+                    // New multi-item format
+                    reservationData.items.forEach(item => {
+                        if (!productConcurrentReservations[item.productId]) {
+                            productConcurrentReservations[item.productId] = 0;
+                            productReservationDetails[item.productId] = [];
+                        }
+                        productConcurrentReservations[item.productId] += item.quantity;
+                        
+                        // Add detailed reservation info
+                        productReservationDetails[item.productId].push({
+                            reservationId: reservationId,
+                            userEmail: reservationData.user_email,
+                            recipientName: reservationData.recipient_name || 'غير محدد',
+                            recipientMobile: reservationData.recipient_mobile || 'غير محدد',
+                            unit: reservationData.unit || 'غير محدد',
+                            startDate: existingStart,
+                            endDate: existingEnd,
+                            status: reservationData.status,
+                            quantity: item.quantity,
+                            productName: item.productNameAr || item.productNameEn || 'غير محدد',
+                            createdAt: reservationData.created_at
+                        });
+                    });
+                } else if (reservationData.product_id) {
+                    // Old single-item format (backward compatibility)
+                    if (!productConcurrentReservations[reservationData.product_id]) {
+                        productConcurrentReservations[reservationData.product_id] = 0;
+                        productReservationDetails[reservationData.product_id] = [];
+                    }
+                    productConcurrentReservations[reservationData.product_id] += reservationData.quantity;
+                    
+                    // Add detailed reservation info
+                    productReservationDetails[reservationData.product_id].push({
+                        reservationId: reservationId,
+                        userEmail: reservationData.user_email,
+                        recipientName: reservationData.recipient_name || 'غير محدد',
+                        recipientMobile: reservationData.recipient_mobile || 'غير محدد',
+                        unit: reservationData.unit || 'غير محدد',
+                        startDate: existingStart,
+                        endDate: existingEnd,
+                        status: reservationData.status,
+                        quantity: reservationData.quantity,
+                        productName: reservationData.product_name_ar || reservationData.product_name_en || 'غير محدد',
+                        createdAt: reservationData.created_at
+                    });
+                }
+            }
+        });
+        
+        // Get all products and calculate available stock
+        const productsSnapshot = await db.collection('products').get();
+        const availableStock = {};
+        
+        productsSnapshot.forEach(doc => {
+            const productData = doc.data();
+            const productId = doc.id;
+            const totalStock = productData.stock_count;
+            const reservedStock = productConcurrentReservations[productId] || 0;
+            const availableQuantity = Math.max(0, totalStock - reservedStock);
+            
+            availableStock[productId] = {
+                total: totalStock,
+                reserved: reservedStock,
+                available: availableQuantity,
+                reservationDetails: productReservationDetails[productId] || [] // Include detailed reservation info
+            };
+        });
+        
+        console.log('📊 Available stock calculated:', availableStock);
+        return availableStock;
+        
+    } catch (error) {
+        console.error('Error calculating available stock:', error);
+        throw error;
+    }
+}
+
+/**
+ * Load and display user products with optional search and availability check
+ * @param {string} searchQuery - Optional search query
+ * @param {Object} availableStock - Optional available stock data for specific period
+ */
+function loadUserProducts(searchQuery = '', availableStock = null) {
     // Clear existing products
     if (userProductsDiv) {
         userProductsDiv.innerHTML = '<div class="col-12 text-center"><div class="spinner-border text-primary" role="status"></div><p class="mt-2">جاري التحميل...</p></div>';
@@ -1145,7 +1308,7 @@ function loadUserProducts(searchQuery = '') {
                 `;
             } else {
                 currentPageProducts.forEach(({id, data}) => {
-                    displayUserProduct(id, data);
+                    displayUserProduct(id, data, availableStock);
                 });
             }
             
@@ -1171,21 +1334,63 @@ function loadUserProducts(searchQuery = '') {
  * Display a single product card for users
  * @param {string} productId - Product document ID
  * @param {Object} product - Product data
+ * @param {Object} availableStock - Available stock data for specific period (optional)
  */
-function displayUserProduct(productId, product) {
+function displayUserProduct(productId, product, availableStock = null) {
     if (!userProductsDiv) return;
     
-    // Determine stock status
+    // Determine stock status based on availability check or total stock
     let stockClass = 'stock-available';
-    let stockText = `متوفر: ${product.stock_count}`;
+    let stockText = '';
+    let actualAvailableStock = product.stock_count;
+    let showAvailabilityInfo = false;
+    let reservationDetails = [];
     
-    if (product.stock_count === 0) {
-        stockClass = 'stock-out';
-        stockText = 'غير متوفر';
-    } else if (product.stock_count <= 5) {
-        stockClass = 'stock-low';
-        stockText = `كمية قليلة: ${product.stock_count}`;
+    if (availableStock && availableStock[productId]) {
+        // Use time-based availability
+        const stockInfo = availableStock[productId];
+        actualAvailableStock = stockInfo.available;
+        showAvailabilityInfo = true;
+        reservationDetails = stockInfo.reservationDetails || [];
+        
+        if (stockInfo.available === 0) {
+            stockClass = 'stock-out';
+            stockText = `غير متوفر خلال الفترة المحددة`;
+        } else if (stockInfo.available <= 5) {
+            stockClass = 'stock-low';
+            stockText = `متوفر خلال الفترة: ${stockInfo.available}`;
+        } else {
+            stockClass = 'stock-available';
+            stockText = `متوفر خلال الفترة: ${stockInfo.available}`;
+        }
+        
+        // Add additional info about total and reserved
+        if (stockInfo.reserved > 0) {
+            stockText += ` (إجمالي: ${stockInfo.total}, محجوز: ${stockInfo.reserved})`;
+        } else {
+            stockText += ` (إجمالي: ${stockInfo.total})`;
+        }
+    } else {
+        // Use total stock (default behavior when no availability check)
+        if (product.stock_count === 0) {
+            stockClass = 'stock-out';
+            stockText = 'غير متوفر';
+        } else if (product.stock_count <= 5) {
+            stockClass = 'stock-low';
+            stockText = `كمية قليلة: ${product.stock_count}`;
+        } else {
+            stockClass = 'stock-available';
+            stockText = `متوفر: ${product.stock_count}`;
+        }
     }
+    
+    // Determine if add to cart should be disabled
+    const isOutOfStock = actualAvailableStock === 0;
+    const needsAvailabilityCheck = !availabilityChecked && !availableStock;
+    const disableAddToCart = isOutOfStock || needsAvailabilityCheck;
+    
+    // Check if there are reservations to show
+    const hasReservations = reservationDetails.length > 0;
     
     const productCard = document.createElement('div');
     productCard.className = 'col-md-4 col-sm-6 mb-4';
@@ -1196,19 +1401,34 @@ function displayUserProduct(productId, product) {
                 <h5 class="product-title">${product.name_ar}</h5>
                 <p class="text-muted small">${product.name_en}</p>
                 <p class="product-stock ${stockClass}">${stockText}</p>
+                ${needsAvailabilityCheck ? `
+                    <div class="alert alert-warning small">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        يرجى اختيار فترة الحجز أولاً لعرض المخزون المتاح
+                    </div>
+                ` : ''}
+                ${hasReservations ? `
+                    <div class="reservation-info-section mb-2">
+                        <button type="button" class="btn btn-info btn-sm btn-block view-reservations-btn" 
+                                data-product-id="${productId}" 
+                                data-product-name="${product.name_ar}">
+                            <i class="fas fa-eye"></i> عرض الحجوزات المتداخلة (${reservationDetails.length})
+                        </button>
+                    </div>
+                ` : ''}
                 <div class="mt-auto">
                     <!-- Add to Cart Section -->
                     <div class="add-to-cart-section">
                         <div class="quantity-input-group">
                             <label for="qty-${productId}">الكمية:</label>
                             <input type="number" class="form-control" id="qty-${productId}" 
-                                   min="1" max="${product.stock_count}" value="1" 
-                                   ${product.stock_count === 0 ? 'disabled' : ''}>
+                                   min="1" max="${actualAvailableStock}" value="1" 
+                                   ${disableAddToCart ? 'disabled' : ''}>
                         </div>
                         <button type="button" class="btn btn-primary btn-block add-to-cart-btn" 
                                 data-product-id="${productId}" 
-                                   ${product.stock_count === 0 ? 'disabled' : ''}>
-                            إضافة للطلب
+                                ${disableAddToCart ? 'disabled' : ''}>
+                            ${needsAvailabilityCheck ? 'اختر فترة الحجز أولاً' : 'إضافة للطلب'}
                         </button>
                     </div>
                 </div>
@@ -1220,9 +1440,17 @@ function displayUserProduct(productId, product) {
     
     // Add event listener for the "Add to Cart" button
     const addToCartBtn = productCard.querySelector('.add-to-cart-btn');
-    if (addToCartBtn && product.stock_count > 0) {
+    if (addToCartBtn && !disableAddToCart) {
         addToCartBtn.addEventListener('click', () => {
-            addProductToCart(productId, product);
+            addProductToCart(productId, product, actualAvailableStock);
+        });
+    }
+    
+    // Add event listener for the "View Reservations" button
+    const viewReservationsBtn = productCard.querySelector('.view-reservations-btn');
+    if (viewReservationsBtn && hasReservations) {
+        viewReservationsBtn.addEventListener('click', () => {
+            showProductReservationsModal(productId, product.name_ar, reservationDetails);
         });
     }
 }
@@ -1711,6 +1939,11 @@ document.addEventListener('keydown', (e) => {
         if (reservationDetailsModal && !reservationDetailsModal.classList.contains('hidden')) {
             hideReservationDetailsModal();
         }
+        // Close product reservations modal
+        const productReservationsModal = document.getElementById('product-reservations-modal');
+        if (productReservationsModal && !productReservationsModal.classList.contains('hidden')) {
+            hideProductReservationsModal();
+        }
     }
 });
 
@@ -1728,6 +1961,8 @@ window.approveReservation = approveReservation;
 window.declineReservation = declineReservation;
 window.cancelReservation = cancelReservation;
 window.rejectSingleItem = rejectSingleItem;
+window.showProductReservationsModal = showProductReservationsModal;
+window.hideProductReservationsModal = hideProductReservationsModal;
 
 /**
  * Load users for management
@@ -2214,10 +2449,14 @@ function createAdminReservationRow(reservationId, reservationData) {
  * Add a product to the shopping cart
  * @param {string} productId - Product document ID
  * @param {Object} product - Product data
+ * @param {number} actualAvailableStock - Available stock for the selected period
  */
-function addProductToCart(productId, product) {
+function addProductToCart(productId, product, actualAvailableStock = null) {
     const quantityInput = document.getElementById(`qty-${productId}`);
     const selectedQuantity = parseInt(quantityInput.value);
+    
+    // Use provided available stock or fall back to total stock
+    const availableStock = actualAvailableStock !== null ? actualAvailableStock : product.stock_count;
     
     // Validate quantity
     if (!selectedQuantity || selectedQuantity <= 0) {
@@ -2225,77 +2464,47 @@ function addProductToCart(productId, product) {
         return;
     }
     
-    if (selectedQuantity > product.stock_count) {
-        showToast('الكمية المطلوبة أكبر من المتوفر', 'warning');
+    if (selectedQuantity > availableStock) {
+        const message = actualAvailableStock !== null ? 
+            'الكمية المطلوبة أكبر من المخزون المتاح خلال الفترة المحددة' : 
+            'الكمية المطلوبة أكبر من إجمالي المخزون المتاح';
+        showToast(message, 'warning');
         return;
     }
     
-    // Run automatic stock restoration before adding to cart to ensure accurate stock counts
-    console.log('🔄 Running stock restoration check before adding to cart...');
-    automaticStockRestoration(true).then((restorationResult) => { // Silent mode for user interactions
-        console.log('✅ Stock restoration check completed:', restorationResult);
-        
-        // Inform user if stock was restored (but keep it subtle)
-        if (restorationResult.processedCount > 0) {
-            console.log(`Stock restored for ${restorationResult.processedCount} expired reservations`);
+    // Check if item already exists in cart
+    const existingItemIndex = currentCart.findIndex(item => item.productId === productId);
+    
+    if (existingItemIndex !== -1) {
+        // Update existing item
+        const newQuantity = currentCart[existingItemIndex].quantity + selectedQuantity;
+        if (newQuantity > availableStock) {
+            const message = actualAvailableStock !== null ? 
+                `لا يمكن إضافة هذه الكمية. الحد الأقصى المتاح خلال الفترة: ${availableStock}` :
+                `لا يمكن إضافة هذه الكمية. الحد الأقصى للمخزون: ${availableStock}`;
+            showToast(message, 'warning');
+            return;
         }
-        
-        // Re-fetch the product to get updated stock count after restoration
-        db.collection('products').doc(productId).get().then((doc) => {
-            if (!doc.exists) {
-                showToast('المنتج غير موجود', 'error');
-                return;
-            }
-            
-            const updatedProduct = doc.data();
-            
-            // Re-validate quantity with updated stock
-            if (selectedQuantity > updatedProduct.stock_count) {
-                showToast(`الكمية المطلوبة أكبر من المتوفر. المتاح حالياً: ${updatedProduct.stock_count}`, 'warning');
-                // Update the UI to show correct stock
-                loadUserProducts(searchQuery);
-                return;
-            }
-            
-            // Check if item already exists in cart
-            const existingItemIndex = currentCart.findIndex(item => item.productId === productId);
-            
-            if (existingItemIndex !== -1) {
-                // Update existing item
-                const newQuantity = currentCart[existingItemIndex].quantity + selectedQuantity;
-                if (newQuantity > updatedProduct.stock_count) {
-                    showToast(`لا يمكن إضافة هذه الكمية. الحد الأقصى المتاح: ${updatedProduct.stock_count}`, 'warning');
-                    return;
-                }
-                currentCart[existingItemIndex].quantity = newQuantity;
-                currentCart[existingItemIndex].stockAvailable = updatedProduct.stock_count; // Update available stock
-                showToast('تم تحديث كمية المنتج في الطلب', 'success');
-            } else {
-                // Add new item
-                currentCart.push({
-                    productId: productId,
-                    productName: updatedProduct.name_ar,
-                    productNameEn: updatedProduct.name_en,
-                    quantity: selectedQuantity,
-                    stockAvailable: updatedProduct.stock_count
-                });
-                showToast('تمت إضافة المنتج للطلب', 'success');
-            }
-            
-            // Reset quantity input
-            quantityInput.value = 1;
-            
-            // Update cart display
-            renderCurrentCart();
-            
-            // Refresh product display to show updated stock counts
-            loadUserProducts(searchQuery);
-            
-        }).catch((error) => {
-            console.error('Error fetching updated product:', error);
-            showToast('خطأ في التحقق من المخزون المحدث', 'error');
+        currentCart[existingItemIndex].quantity = newQuantity;
+        currentCart[existingItemIndex].stockAvailable = availableStock; // Update available stock
+        showToast('تم تحديث كمية المنتج في الطلب', 'success');
+    } else {
+        // Add new item
+        currentCart.push({
+            productId: productId,
+            productName: product.name_ar,
+            productNameEn: product.name_en,
+            quantity: selectedQuantity,
+            stockAvailable: availableStock
         });
-    });
+        showToast('تمت إضافة المنتج للطلب', 'success');
+    }
+    
+    // Reset quantity input
+    quantityInput.value = 1;
+    
+    // Update cart display
+    renderCurrentCart();
 }
 
 /**
@@ -2773,12 +2982,12 @@ async function approveReservation(reservationId) {
 }
 
 /**
- * Decline a reservation and restore stock (Admin function)
+ * Decline a reservation (Admin function)
  * @param {string} reservationId - Reservation document ID
  * @param {Object} reservationData - Reservation data
  */
 async function declineReservation(reservationId, reservationData) {
-    if (!confirm('هل أنت متأكد من رفض هذا الطلب؟ سيتم استعادة المخزون للمنتجات.')) {
+    if (!confirm('هل أنت متأكد من رفض هذا الطلب؟ سيصبح متاحاً للحجوزات الأخرى.')) {
         return;
     }
     
@@ -2796,33 +3005,27 @@ async function declineReservation(reservationId, reservationData) {
             
             // Prepare activity entry
             let declinedItemsDetails = '';
-            let totalRestoredQuantity = 0;
+            let totalQuantity = 0;
             
             // Handle both old and new reservation formats
             if (reservationDataForTx.items && Array.isArray(reservationDataForTx.items)) {
                 // New multi-item format
                 const itemsDetails = [];
                 for (const item of reservationDataForTx.items) {
-                    const productRef = db.collection('products').doc(item.productId);
-                    transaction.update(productRef, {
-                        stock_count: firebase.firestore.FieldValue.increment(item.quantity)
-                    });
+                    // NO LONGER INCREMENTING product.stock_count here
+                    // The items become "available" again because the reservation will no longer be 'Active'
                     stockRestoredUpdate[`stock_restored_for_items.${item.productId}`] = true;
                     itemsDetails.push(`${item.productNameAr || item.productNameEn} (${item.quantity})`);
-                    totalRestoredQuantity += item.quantity;
+                    totalQuantity += item.quantity;
                 }
                 declinedItemsDetails = itemsDetails.join(', ');
             } else {
                 // Old single-item format (backward compatibility)
-                // Use the data from the transaction document, not the passed parameter
                 if (reservationDataForTx.product_id && reservationDataForTx.quantity) {
-                    const productRef = db.collection('products').doc(reservationDataForTx.product_id);
-                    transaction.update(productRef, {
-                        stock_count: firebase.firestore.FieldValue.increment(reservationDataForTx.quantity)
-                    });
+                    // NO LONGER INCREMENTING product.stock_count here
                     stockRestoredUpdate[`stock_restored_for_items.${reservationDataForTx.product_id}`] = true;
                     declinedItemsDetails = `${reservationDataForTx.product_name_ar || reservationDataForTx.product_name_en} (${reservationDataForTx.quantity})`;
-                    totalRestoredQuantity = reservationDataForTx.quantity;
+                    totalQuantity = reservationDataForTx.quantity;
                 }
             }
             
@@ -2830,10 +3033,10 @@ async function declineReservation(reservationId, reservationData) {
             const activityEntry = createActivityEntry(
                 'declined',
                 auth.currentUser.email,
-                `تم رفض الطلب واستعادة المخزون للمنتجات: ${declinedItemsDetails}`,
+                `تم رفض الطلب وأصبحت العهدة متاحة للحجوزات الأخرى: ${declinedItemsDetails}`,
                 { 
                     declined_by_admin: true,
-                    total_restored_quantity: totalRestoredQuantity,
+                    total_quantity: totalQuantity,
                     declined_items: declinedItemsDetails
                 }
             );
@@ -2847,7 +3050,7 @@ async function declineReservation(reservationId, reservationData) {
             });
         });
         
-        showToast('تم رفض الطلب واستعادة المخزون بالكامل.', 'success');
+        showToast('تم رفض الطلب. أصبحت العهدة متاحة للحجوزات الأخرى.', 'success');
     } catch (error) {
         console.error('Error declining reservation:', error);
         showToast('خطأ في رفض الطلب: ' + error.message, 'error');
@@ -2855,12 +3058,12 @@ async function declineReservation(reservationId, reservationData) {
 }
 
 /**
- * Cancel a reservation and restore stock (User function)
+ * Cancel a reservation (User function)
  * @param {string} reservationId - Reservation document ID
  * @param {Object} reservationData - Reservation data
  */
 async function cancelReservation(reservationId, reservationData) {
-    if (!confirm('هل أنت متأكد من إلغاء هذا الطلب؟ سيتم استعادة المخزون للمنتجات.')) {
+    if (!confirm('هل أنت متأكد من إلغاء هذا الطلب؟ ستصبح العهدة متاحة للحجوزات الأخرى.')) {
         return;
     }
     
@@ -2878,33 +3081,27 @@ async function cancelReservation(reservationId, reservationData) {
             
             // Prepare activity entry
             let cancelledItemsDetails = '';
-            let totalRestoredQuantity = 0;
+            let totalQuantity = 0;
             
             // Handle both old and new reservation formats
             if (reservationDataForTx.items && Array.isArray(reservationDataForTx.items)) {
                 // New multi-item format
                 const itemsDetails = [];
                 for (const item of reservationDataForTx.items) {
-                    const productRef = db.collection('products').doc(item.productId);
-                    transaction.update(productRef, {
-                        stock_count: firebase.firestore.FieldValue.increment(item.quantity)
-                    });
+                    // NO LONGER INCREMENTING product.stock_count here
+                    // The items become "available" again because the reservation will no longer be 'Active'
                     stockRestoredUpdate[`stock_restored_for_items.${item.productId}`] = true;
                     itemsDetails.push(`${item.productNameAr || item.productNameEn} (${item.quantity})`);
-                    totalRestoredQuantity += item.quantity;
+                    totalQuantity += item.quantity;
                 }
                 cancelledItemsDetails = itemsDetails.join(', ');
             } else {
                 // Old single-item format (backward compatibility)
-                // Use the data from the transaction document, not the passed parameter
                 if (reservationDataForTx.product_id && reservationDataForTx.quantity) {
-                    const productRef = db.collection('products').doc(reservationDataForTx.product_id);
-                    transaction.update(productRef, {
-                        stock_count: firebase.firestore.FieldValue.increment(reservationDataForTx.quantity)
-                    });
+                    // NO LONGER INCREMENTING product.stock_count here
                     stockRestoredUpdate[`stock_restored_for_items.${reservationDataForTx.product_id}`] = true;
                     cancelledItemsDetails = `${reservationDataForTx.product_name_ar || reservationDataForTx.product_name_en} (${reservationDataForTx.quantity})`;
-                    totalRestoredQuantity = reservationDataForTx.quantity;
+                    totalQuantity = reservationDataForTx.quantity;
                 }
             }
             
@@ -2912,10 +3109,10 @@ async function cancelReservation(reservationId, reservationData) {
             const activityEntry = createActivityEntry(
                 'cancelled',
                 auth.currentUser.email,
-                `تم إلغاء الطلب من قبل المستخدم واستعادة المخزون للمنتجات: ${cancelledItemsDetails}`,
+                `تم إلغاء الطلب من قبل المستخدم وأصبحت العهدة متاحة للحجوزات الأخرى: ${cancelledItemsDetails}`,
                 { 
                     cancelled_by_user: true,
-                    total_restored_quantity: totalRestoredQuantity,
+                    total_quantity: totalQuantity,
                     cancelled_items: cancelledItemsDetails
                 }
             );
@@ -2929,7 +3126,7 @@ async function cancelReservation(reservationId, reservationData) {
             });
         });
         
-        showToast('تم إلغاء الطلب واستعادة المخزون بالكامل.', 'success');
+        showToast('تم إلغاء الطلب. أصبحت العهدة متاحة للحجوزات الأخرى.', 'success');
     } catch (error) {
         console.error('Error cancelling reservation:', error);
         showToast('خطأ في إلغاء الطلب: ' + error.message, 'error');
@@ -2943,7 +3140,7 @@ async function cancelReservation(reservationId, reservationData) {
  * @param {string} itemName - Name of the item for confirmation
  */
 async function rejectSingleItem(reservationId, itemIndex, itemName) {
-    if (!confirm(`هل أنت متأكد من رفض المنتج "${itemName}" من هذا الطلب؟ سيتم استعادة المخزون لهذا المنتج فقط.`)) {
+    if (!confirm(`هل أنت متأكد من رفض المنتج "${itemName}" من هذا الطلب؟ سيصبح متاحاً للحجوزات الأخرى.`)) {
         return;
     }
     
@@ -2971,11 +3168,8 @@ async function rejectSingleItem(reservationId, itemIndex, itemName) {
             
             const itemToReject = reservationData.items[itemIndex];
             
-            // Restore stock for the rejected item
-            const productRef = db.collection('products').doc(itemToReject.productId);
-            transaction.update(productRef, {
-                stock_count: firebase.firestore.FieldValue.increment(itemToReject.quantity)
-            });
+            // NO LONGER INCREMENTING product.stock_count here
+            // The item becomes "available" again because it will no longer be in an 'Active' reservation
             
             // Remove the item from the reservation
             const updatedItems = reservationData.items.filter((_, index) => index !== itemIndex);
@@ -3020,14 +3214,10 @@ async function rejectSingleItem(reservationId, itemIndex, itemName) {
         });
         
         if (wasLastItem) {
-            showToast('تم رفض المنتج وإلغاء الطلب بالكامل لعدم وجود منتجات أخرى.', 'success');
+            showToast('تم رفض آخر منتج وإلغاء الطلب بالكامل. أصبحت العهدة متاحة للحجوزات الأخرى.', 'success');
         } else {
-            showToast(`تم رفض المنتج "${itemName}" واستعادة المخزون.`, 'success');
+            showToast('تم رفض المنتج من الطلب. أصبح متاحاً للحجوزات الأخرى.', 'success');
         }
-        
-        // Close the modal and refresh the view
-        hideReservationDetailsModal();
-        
     } catch (error) {
         console.error('Error rejecting single item:', error);
         showToast('خطأ في رفض المنتج: ' + error.message, 'error');
@@ -3142,36 +3332,36 @@ function getActivityClass(action) {
 }
 
 // ============================================================================
-// AUTOMATIC STOCK RESTORATION SYSTEM
+// AUTOMATIC RESERVATION COMPLETION SYSTEM
 // ============================================================================
 
 /**
  * Automatic Stock Restoration Function
- * Checks for expired reservations and restores stock automatically
+ * Checks for expired reservations and marks them as completed
  * Runs client-side when users visit the app
  * @param {boolean} silent - If true, won't show admin notifications (for background/interactive calls)
  * @returns {Promise<Object>} - Returns information about processed reservations
  */
 async function automaticStockRestoration(silent = false) {
-    console.log('Starting automatic stock restoration check...');
+    console.log('Starting automatic reservation completion check...');
     
     try {
         const now = firebase.firestore.Timestamp.now();
         
-        // Query for reservations that need stock restoration
-        const reservationsToRestoreQuery = db.collection('reservations')
+        // Query for reservations that need status update to completed
+        const reservationsToCompleteQuery = db.collection('reservations')
             .where('reservation_end', '<=', now)
             .where('all_items_stock_restored', '==', false)
             .where('status', 'in', ['Active', 'Approved']);
         
-        const snapshot = await reservationsToRestoreQuery.get();
+        const snapshot = await reservationsToCompleteQuery.get();
         
         if (snapshot.empty) {
-            console.log('No reservations found needing stock restoration at this time.');
+            console.log('No reservations found needing completion at this time.');
             return { processedCount: 0, message: 'No expired reservations found' };
         }
         
-        console.log(`Found ${snapshot.docs.length} reservation(s) to process for stock restoration.`);
+        console.log(`Found ${snapshot.docs.length} reservation(s) to process for completion.`);
         
         // Process each reservation
         const batch = db.batch();
@@ -3190,32 +3380,29 @@ async function automaticStockRestoration(silent = false) {
             
             const stockRestoredUpdatePayload = {}; // To build updates for stock_restored_for_items
             
-            // Process each item in the reservation
+            // Process each item in the reservation (mark as restored but don't increment stock)
             for (const item of reservation.items) {
                 if (!item.productId || typeof item.quantity !== 'number' || item.quantity <= 0) {
                     console.error(`Reservation ID: ${reservationId}, Item has invalid data:`, item);
                     continue; // Skip this malformed item
                 }
                 
-                // Queue stock increment for this product
-                const productRef = db.collection('products').doc(item.productId);
-                batch.update(productRef, {
-                    stock_count: firebase.firestore.FieldValue.increment(item.quantity)
-                });
+                // NO LONGER INCREMENTING product.stock_count here
+                // The stock becomes "available" again because the reservation will no longer be 'Active'/'Approved'
                 
                 // Mark this item's stock as restored
                 stockRestoredUpdatePayload[`stock_restored_for_items.${item.productId}`] = true;
-                console.log(`  - Queued stock increment for product ${item.productId} by ${item.quantity}`);
+                console.log(`  - Marked item ${item.productId} as completed (quantity: ${item.quantity})`);
             }
             
-            // Create activity entry for stock restoration
+            // Create activity entry for completion
             const activityEntry = createActivityEntry(
                 'stock_restored',
                 'system',
-                'تم استعادة المخزون تلقائياً بعد انتهاء فترة الحجز',
+                'تم إكمال الحجز تلقائياً بعد انتهاء فترة الحجز',
                 { 
-                    auto_restored: true,
-                    restoration_time: firebase.firestore.Timestamp.now(),
+                    auto_completed: true,
+                    completion_time: firebase.firestore.Timestamp.now(),
                     items_count: reservation.items.length,
                     triggered_by: silent ? 'user_interaction' : 'scheduled_check'
                 }
@@ -3237,7 +3424,7 @@ async function automaticStockRestoration(silent = false) {
         // Commit all changes in a single batch
         if (successfullyProcessedCount > 0) {
             await batch.commit();
-            console.log(`✅ Successfully restored stock for ${successfullyProcessedCount} expired reservation(s).`);
+            console.log(`✅ Successfully completed ${successfullyProcessedCount} expired reservation(s).`);
             
             // Show notification to admins only if not silent and user is admin
             if (!silent && auth.currentUser) {
@@ -3245,33 +3432,33 @@ async function automaticStockRestoration(silent = false) {
                 if (userDoc.exists) {
                     const userData = userDoc.data();
                     if (userData.role === 'admin' || userData.role === 'superadmin') {
-                        showToast(`تم استعادة المخزون تلقائياً لـ ${successfullyProcessedCount} طلب منتهي الصلاحية`, 'info');
+                        showToast(`تم إكمال ${successfullyProcessedCount} طلب منتهي الصلاحية تلقائياً`, 'info');
                     }
                 }
             }
             
             return { 
                 processedCount: successfullyProcessedCount, 
-                message: `Successfully restored stock for ${successfullyProcessedCount} expired reservations` 
+                message: `Successfully completed ${successfullyProcessedCount} expired reservations` 
             };
         } else {
-            console.log('No reservations were eligible for stock restoration after validation.');
+            console.log('No reservations were eligible for completion after validation.');
             return { processedCount: 0, message: 'No eligible reservations found after validation' };
         }
         
     } catch (error) {
-        console.error('❌ Error in automatic stock restoration:', error);
+        console.error('❌ Error in automatic reservation completion:', error);
         // Don't show error toast to users as this runs in background
         return { processedCount: 0, message: `Error: ${error.message}`, error: true };
     }
 }
 
 /**
- * Initialize automatic stock restoration
+ * Initialize automatic reservation completion
  * Sets up the system to run when app loads and periodically
  */
 function initializeAutomaticStockRestoration() {
-    console.log('Initializing automatic stock restoration system...');
+    console.log('Initializing automatic reservation completion system...');
     
     // Run immediately when app loads (after a short delay to ensure Firebase is ready)
     setTimeout(() => {
@@ -3279,16 +3466,341 @@ function initializeAutomaticStockRestoration() {
     }, 5000); // 5 second delay
     
     // Run every 10 minutes (600,000 milliseconds)
-    // This is more frequent than the Cloud Function would be, ensuring better responsiveness
+    // This ensures expired reservations are marked as completed promptly
     setInterval(automaticStockRestoration, 10 * 60 * 1000);
     
-    console.log('✅ Automatic stock restoration system initialized - will run every 10 minutes');
+    console.log('✅ Automatic reservation completion system initialized - will run every 10 minutes');
 }
 
-// Initialize the automatic stock restoration when the page loads
+// Initialize the automatic reservation completion when the page loads
 document.addEventListener('DOMContentLoaded', () => {
-    // Wait for Firebase to be ready before starting automatic stock restoration
+    // Wait for Firebase to be ready before starting automatic reservation completion
     setTimeout(() => {
         initializeAutomaticStockRestoration();
     }, 3000); // 3 second delay to ensure Firebase is initialized
 });
+
+// Return to Admin Button Event Listener
+if (returnToAdminBtn) {
+    returnToAdminBtn.addEventListener('click', () => {
+        showAdminSection();
+    });
+}
+
+// Availability Check Event Listeners
+if (checkAvailabilityBtn) {
+    checkAvailabilityBtn.addEventListener('click', async () => {
+        const startTime = availabilityStartTime.value;
+        const endTime = availabilityEndTime.value;
+        
+        // Validate dates
+        if (!startTime || !endTime) {
+            showToast('يرجى اختيار تاريخ البداية والنهاية', 'warning');
+            return;
+        }
+        
+        const startDate = new Date(startTime);
+        const endDate = new Date(endTime);
+        
+        if (endDate <= startDate) {
+            showToast('تاريخ الانتهاء يجب أن يكون بعد تاريخ البداية', 'warning');
+            return;
+        }
+        
+        // Check if dates are in the past
+        const now = new Date();
+        if (startDate < now) {
+            showToast('لا يمكن اختيار تاريخ في الماضي', 'warning');
+            return;
+        }
+        
+        try {
+            // Show loading state
+            checkAvailabilityBtn.disabled = true;
+            checkAvailabilityBtn.innerHTML = '<span class="spinner-border spinner-border-sm mr-2"></span>جاري فحص التوافر...';
+            
+            // Calculate available stock for the selected period
+            const availableStock = await calculateAvailableStock(startDate, endDate);
+            
+            // Update global variables
+            selectedAvailabilityStart = startDate;
+            selectedAvailabilityEnd = endDate;
+            availabilityChecked = true;
+            
+            // Update status message
+            if (availabilityStatus) {
+                availabilityStatus.innerHTML = `
+                    <small><strong>✅ تم فحص التوافر:</strong> من ${startDate.toLocaleString('ar-EG')} إلى ${endDate.toLocaleString('ar-EG')}</small>
+                `;
+                availabilityStatus.style.display = 'block';
+                availabilityStatus.className = 'alert alert-success';
+            }
+            
+            // Auto-fill the finalize form dates
+            if (requestStartTime && requestEndTime) {
+                requestStartTime.value = startTime;
+                requestEndTime.value = endTime;
+            }
+            
+            // Reload products with availability data
+            loadUserProducts(searchQuery, availableStock);
+            
+            showToast('تم فحص التوافر بنجاح. يمكنك الآن إضافة المنتجات للطلب', 'success');
+            
+        } catch (error) {
+            console.error('Error checking availability:', error);
+            showToast('خطأ في فحص التوافر: ' + error.message, 'error');
+        } finally {
+            // Reset button state
+            checkAvailabilityBtn.disabled = false;
+            checkAvailabilityBtn.innerHTML = 'فحص التوافر';
+        }
+    });
+}
+
+/**
+ * Initialize availability interface
+ */
+function initializeAvailabilityInterface() {
+    // Set minimum date to current date/time
+    const now = new Date();
+    const currentDateTime = now.toISOString().slice(0, 16); // Format for datetime-local input
+    
+    if (availabilityStartTime) {
+        availabilityStartTime.min = currentDateTime;
+        availabilityStartTime.value = '';
+    }
+    
+    if (availabilityEndTime) {
+        availabilityEndTime.min = currentDateTime;
+        availabilityEndTime.value = '';
+    }
+    
+    // Add event listeners for date validation
+    if (availabilityStartTime) {
+        availabilityStartTime.addEventListener('change', () => {
+            if (availabilityEndTime && availabilityStartTime.value) {
+                // Set minimum end time to be after start time
+                availabilityEndTime.min = availabilityStartTime.value;
+                
+                // Clear end time if it's before the new start time
+                if (availabilityEndTime.value && new Date(availabilityEndTime.value) <= new Date(availabilityStartTime.value)) {
+                    availabilityEndTime.value = '';
+                }
+            }
+            
+            // Reset availability check when dates change
+            resetAvailabilityCheck();
+        });
+    }
+    
+    if (availabilityEndTime) {
+        availabilityEndTime.addEventListener('change', () => {
+            // Reset availability check when dates change
+            resetAvailabilityCheck();
+        });
+    }
+    
+    // Show initial status
+    if (availabilityStatus) {
+        availabilityStatus.innerHTML = `
+            <small><strong>تنبيه:</strong> يرجى اختيار فترة الحجز لعرض المخزون المتاح خلال هذه الفترة</small>
+        `;
+        availabilityStatus.style.display = 'block';
+        availabilityStatus.className = 'alert alert-info';
+    }
+}
+
+/**
+ * Reset availability check state
+ */
+function resetAvailabilityCheck() {
+    availabilityChecked = false;
+    selectedAvailabilityStart = null;
+    selectedAvailabilityEnd = null;
+    
+    // Update status message
+    if (availabilityStatus) {
+        availabilityStatus.innerHTML = `
+            <small><strong>تنبيه:</strong> يرجى اختيار فترة الحجز لعرض المخزون المتاح خلال هذه الفترة</small>
+        `;
+        availabilityStatus.className = 'alert alert-info';
+    }
+    
+    // Reload products without availability data
+    loadUserProducts(searchQuery);
+}
+
+/**
+ * Show modal with detailed reservation information for a specific product
+ * @param {string} productId - Product document ID
+ * @param {string} productName - Product name
+ * @param {Array} reservationDetails - Array of reservation details
+ */
+function showProductReservationsModal(productId, productName, reservationDetails) {
+    // Create modal if it doesn't exist
+    let reservationsModal = document.getElementById('product-reservations-modal');
+    if (!reservationsModal) {
+        const modalHTML = `
+            <div id="product-reservations-modal" class="modal hidden" style="z-index: 2000;">
+                <div class="modal-content" style="max-width: 95%; max-height: 90%; overflow: auto;">
+                    <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; padding: 1rem; border-bottom: 1px solid #dee2e6;">
+                        <h4 id="product-reservations-title">الحجوزات المتداخلة</h4>
+                        <span class="close" onclick="hideProductReservationsModal()" style="font-size: 28px; font-weight: bold; cursor: pointer;">&times;</span>
+                    </div>
+                    <div class="modal-body" style="padding: 1rem;">
+                        <div id="product-reservations-content">
+                            <!-- Dynamic content will be loaded here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.body.insertAdjacentHTML('beforeend', modalHTML);
+        reservationsModal = document.getElementById('product-reservations-modal');
+        
+        // Add click outside to close functionality
+        reservationsModal.addEventListener('click', (e) => {
+            if (e.target === reservationsModal) {
+                hideProductReservationsModal();
+            }
+        });
+    }
+    
+    // Set modal title
+    const modalTitle = document.getElementById('product-reservations-title');
+    modalTitle.textContent = `الحجوزات المتداخلة - ${productName}`;
+    
+    // Build content
+    const contentDiv = document.getElementById('product-reservations-content');
+    
+    // Format dates
+    const formatDate = (date) => {
+        if (!date) return 'غير محدد';
+        try {
+            return date.toLocaleString('ar-EG', {
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        } catch (e) {
+            return 'غير محدد';
+        }
+    };
+    
+    // Get status display
+    const getStatusDisplay = (status) => {
+        switch (status) {
+            case 'Active':
+                return '<span class="badge badge-primary">نشط</span>';
+            case 'Approved':
+                return '<span class="badge badge-success">مقبول</span>';
+            default:
+                return '<span class="badge badge-light">غير محدد</span>';
+        }
+    };
+    
+    // Calculate total reserved quantity
+    const totalReserved = reservationDetails.reduce((sum, res) => sum + (res.quantity || 0), 0);
+    
+    let contentHTML = `
+        <div class="product-reservations-summary">
+            <div class="alert alert-info">
+                <h5><i class="fas fa-info-circle"></i> ملخص الحجوزات</h5>
+                <p><strong>المنتج:</strong> ${productName}</p>
+                <p><strong>عدد الحجوزات المتداخلة:</strong> ${reservationDetails.length}</p>
+                <p><strong>إجمالي الكمية المحجوزة:</strong> ${totalReserved}</p>
+            </div>
+        </div>
+        
+        <div class="product-reservations-table-container">
+            <h5>تفاصيل الحجوزات</h5>
+            <div class="table-responsive">
+                <table class="table table-striped product-reservations-table">
+                    <thead>
+                        <tr>
+                            <th>رقم الحجز</th>
+                            <th>البريد الإلكتروني</th>
+                            <th>اسم المستلم</th>
+                            <th>رقم الموبايل</th>
+                            <th>الوحدة</th>
+                            <th>الكمية</th>
+                            <th>من تاريخ</th>
+                            <th>إلى تاريخ</th>
+                            <th>الحالة</th>
+                            <th>تاريخ الإنشاء</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+    `;
+    
+    // Sort reservations by start date
+    const sortedReservations = [...reservationDetails].sort((a, b) => {
+        return new Date(a.startDate) - new Date(b.startDate);
+    });
+    
+    sortedReservations.forEach((reservation, index) => {
+        const createdDate = reservation.createdAt ? formatDate(reservation.createdAt.toDate ? reservation.createdAt.toDate() : new Date(reservation.createdAt)) : 'غير محدد';
+        
+        contentHTML += `
+            <tr>
+                <td>
+                    <small class="text-muted">${reservation.reservationId.substring(0, 8)}...</small>
+                </td>
+                <td>${reservation.userEmail || 'غير محدد'}</td>
+                <td>${reservation.recipientName}</td>
+                <td>
+                    <a href="tel:${reservation.recipientMobile}" class="text-decoration-none">
+                        ${reservation.recipientMobile}
+                    </a>
+                </td>
+                <td>${reservation.unit}</td>
+                <td>
+                    <span class="badge badge-secondary">${reservation.quantity}</span>
+                </td>
+                <td>
+                    <small>${formatDate(reservation.startDate)}</small>
+                </td>
+                <td>
+                    <small>${formatDate(reservation.endDate)}</small>
+                </td>
+                <td>${getStatusDisplay(reservation.status)}</td>
+                <td>
+                    <small class="text-muted">${createdDate}</small>
+                </td>
+            </tr>
+        `;
+    });
+    
+    contentHTML += `
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+        <div class="product-reservations-actions mt-3">
+            <button type="button" class="btn btn-secondary" onclick="hideProductReservationsModal()">
+                إغلاق
+            </button>
+        </div>
+    `;
+    
+    contentDiv.innerHTML = contentHTML;
+    
+    // Show modal
+    reservationsModal.classList.remove('hidden');
+    reservationsModal.style.display = 'block';
+}
+
+/**
+ * Hide product reservations modal
+ */
+function hideProductReservationsModal() {
+    const reservationsModal = document.getElementById('product-reservations-modal');
+    if (reservationsModal) {
+        reservationsModal.classList.add('hidden');
+        reservationsModal.style.display = 'none';
+    }
+}

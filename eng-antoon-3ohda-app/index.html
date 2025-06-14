@@ -250,6 +250,40 @@
                         </div>
                     </div>
                     
+                    <!-- Date Selection for Availability Check -->
+                    <div class="card mb-4 availability-check-card">
+                        <div class="card-header">
+                            <h4>اختر فترة الحجز لعرض المخزون المتاح</h4>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-5">
+                                    <div class="form-group">
+                                        <label for="availability-start-time">بداية الحجز:</label>
+                                        <input type="datetime-local" class="form-control" id="availability-start-time" required>
+                                    </div>
+                                </div>
+                                <div class="col-md-5">
+                                    <div class="form-group">
+                                        <label for="availability-end-time">نهاية الحجز:</label>
+                                        <input type="datetime-local" class="form-control" id="availability-end-time" required>
+                                    </div>
+                                </div>
+                                <div class="col-md-2">
+                                    <div class="form-group">
+                                        <label>&nbsp;</label>
+                                        <button type="button" class="btn btn-primary btn-block" id="check-availability-btn">
+                                            فحص التوافر
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="alert alert-info" id="availability-status" style="display: none;">
+                                <small><strong>تنبيه:</strong> يرجى اختيار فترة الحجز لعرض المخزون المتاح خلال هذه الفترة</small>
+                            </div>
+                        </div>
+                    </div>
+                    
                     <!-- Current Request/Cart Section -->
                     <div class="card mb-4">
                         <div class="card-header">
