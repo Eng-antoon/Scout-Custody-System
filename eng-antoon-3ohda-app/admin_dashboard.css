@@ -221,4 +221,463 @@ input[type="text"].form-control:focus {
         padding-left: 1rem;
         padding-right: 1rem;
     }
+}
+
+/* Modal styling */
+.modal {
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+/* Higher z-index for reservation details modal when opened from daily modal */
+.modal.modal-on-top {
+    z-index: 1100;
+    background-color: rgba(0,0,0,0.7);
+}
+
+.modal-content {
+    background-color: #fff;
+    margin: auto;
+    padding: 20px;
+    border-radius: 8px;
+    width: 90%;
+    max-width: 800px;
+    max-height: 90vh;
+    overflow-y: auto;
+    position: relative;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+}
+
+.modal .close {
+    position: absolute;
+    top: 15px;
+    left: 20px;
+    color: #aaa;
+    font-size: 28px;
+    font-weight: bold;
+    cursor: pointer;
+    z-index: 1001;
+}
+
+.modal .close:hover,
+.modal .close:focus {
+    color: #000;
+    text-decoration: none;
+}
+
+/* Upcoming reservations enhanced styling */
+.upcoming-day-card {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 15px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+}
+
+.upcoming-day-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 25px rgba(0,0,0,0.2);
+}
+
+.upcoming-day-card.no-reservations {
+    background: linear-gradient(135deg, #bdc3c7 0%, #95a5a6 100%);
+    opacity: 0.7;
+    cursor: default;
+}
+
+.upcoming-day-card.no-reservations:hover {
+    transform: none;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+}
+
+.day-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.day-date {
+    font-size: 1.2rem;
+    font-weight: 600;
+}
+
+.day-weekday {
+    font-size: 0.9rem;
+    opacity: 0.8;
+}
+
+.reservation-stats {
+    display: flex;
+    gap: 15px;
+    align-items: center;
+}
+
+.stat-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    background: rgba(255,255,255,0.2);
+    padding: 5px 10px;
+    border-radius: 20px;
+    font-size: 0.9rem;
+}
+
+.stat-item i {
+    font-size: 0.8rem;
+}
+
+/* Clickable table rows */
+.clickable-row {
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.clickable-row:hover {
+    background-color: #f8f9fa !important;
+}
+
+/* Reservation details styling */
+.reservation-detail-card {
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    padding: 15px;
+    margin-bottom: 15px;
+    background-color: #f8f9fa;
+}
+
+.reservation-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #dee2e6;
+}
+
+.reservation-header > div:last-child {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.reservation-status {
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.status-active {
+    background-color: #28a745;
+    color: white;
+}
+
+.status-approved {
+    background-color: #007bff;
+    color: white;
+}
+
+.status-completed {
+    background-color: #6c757d;
+    color: white;
+}
+
+.status-declined {
+    background-color: #dc3545;
+    color: white;
+}
+
+.reservation-items {
+    margin-top: 10px;
+}
+
+.item-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.item-row:last-child {
+    border-bottom: none;
+}
+
+.item-name {
+    font-weight: 500;
+}
+
+.item-quantity {
+    background-color: #007bff;
+    color: white;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 0.8rem;
+}
+
+/* Enhanced reservations table styling */
+#reservations-table {
+    font-size: 0.9rem;
+}
+
+#reservations-table th {
+    background-color: #f8f9fa;
+    border-top: none;
+    font-weight: 600;
+    white-space: nowrap;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+#reservations-table td {
+    vertical-align: middle;
+    border-top: 1px solid #dee2e6;
+}
+
+.table-responsive {
+    max-height: 600px;
+    overflow-y: auto;
+}
+
+/* Reservation row styling */
+.reservation-row {
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.reservation-row:hover {
+    background-color: #f8f9fa !important;
+}
+
+/* Status badges in table */
+.status-badge {
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.status-badge.active {
+    background-color: #28a745;
+    color: white;
+}
+
+.status-badge.approved {
+    background-color: #007bff;
+    color: white;
+}
+
+.status-badge.completed {
+    background-color: #6c757d;
+    color: white;
+}
+
+.status-badge.declined {
+    background-color: #dc3545;
+    color: white;
+}
+
+.status-badge.pending {
+    background-color: #ffc107;
+    color: #212529;
+}
+
+/* Items count badge */
+.items-count-badge {
+    background-color: #17a2b8;
+    color: white;
+    padding: 2px 6px;
+    border-radius: 10px;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+/* Filter controls */
+.card-header .row {
+    margin-top: 0.5rem;
+}
+
+.card-header select,
+.card-header input {
+    font-size: 0.9rem;
+}
+
+/* Pagination styling */
+#reservations-pagination {
+    background-color: #f8f9fa;
+}
+
+#reservations-pagination .btn {
+    font-size: 0.875rem;
+}
+
+/* Empty state styling */
+#reservations-table-empty i {
+    opacity: 0.3;
+}
+
+/* Action buttons in table */
+.action-btn {
+    padding: 2px 6px;
+    font-size: 0.75rem;
+    border-radius: 4px;
+    margin: 0 2px;
+}
+
+/* Responsive table adjustments */
+@media (max-width: 768px) {
+    #reservations-table {
+        font-size: 0.8rem;
+    }
+    
+    #reservations-table th,
+    #reservations-table td {
+        padding: 0.5rem 0.25rem;
+    }
+    
+    .card-header .row > div {
+        margin-bottom: 0.5rem;
+    }
+}
+
+/* Data Visualization Styles */
+.stat-card {
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    transition: transform 0.2s ease;
+}
+
+.stat-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+}
+
+.stat-icon {
+    font-size: 2.5rem;
+    margin-left: 15px;
+    opacity: 0.8;
+}
+
+.stat-content h3 {
+    font-size: 2rem;
+    font-weight: bold;
+    margin: 0;
+    line-height: 1;
+}
+
+.stat-content p {
+    margin: 5px 0 0 0;
+    font-size: 0.9rem;
+    opacity: 0.9;
+}
+
+/* Chart containers */
+.chart-container {
+    background: white;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 20px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    border: 1px solid #e9ecef;
+}
+
+.chart-container h5 {
+    margin-bottom: 15px;
+    color: #495057;
+    font-weight: 600;
+}
+
+.chart-container canvas {
+    max-height: 300px;
+}
+
+/* Table containers */
+.table-container {
+    background: white;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 20px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    border: 1px solid #e9ecef;
+}
+
+.table-container h5 {
+    margin-bottom: 15px;
+    color: #495057;
+    font-weight: 600;
+}
+
+.table-container .table {
+    margin-bottom: 0;
+}
+
+.table-container .table th {
+    background-color: #f8f9fa;
+    border-top: none;
+    font-weight: 600;
+    font-size: 0.85rem;
+}
+
+.table-container .table td {
+    font-size: 0.85rem;
+    vertical-align: middle;
+}
+
+/* Data visualization section */
+#data-visualization-section {
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    border-radius: 15px;
+    padding: 20px;
+    margin-top: 30px;
+}
+
+#data-visualization-section .card {
+    border: none;
+    box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+}
+
+/* Responsive adjustments for data viz */
+@media (max-width: 768px) {
+    .stat-card {
+        padding: 15px;
+        margin-bottom: 15px;
+    }
+    
+    .stat-icon {
+        font-size: 2rem;
+        margin-left: 10px;
+    }
+    
+    .stat-content h3 {
+        font-size: 1.5rem;
+    }
+    
+    .chart-container,
+    .table-container {
+        padding: 15px;
+        margin-bottom: 15px;
+    }
+    
+    .chart-container canvas {
+        max-height: 250px;
+    }
 } 

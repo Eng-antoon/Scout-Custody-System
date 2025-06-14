@@ -95,6 +95,11 @@
                     <div class="card">
                         <div class="card-header">
                             <h4><i class="fas fa-list-alt"></i> ملخص المنتجات والعهدة الحالية</h4>
+                            <small class="text-muted">
+                                <i class="fas fa-info-circle"></i> 
+                                العهدة المتاحة محسوبة بناءً على الحجوزات النشطة اليوم فقط
+                                <span id="calculation-date" class="badge badge-secondary ml-2"></span>
+                            </small>
                         </div>
                         <div class="card-body">
                             <input type="text" id="product-summary-search" class="form-control mb-3" placeholder="ابحث عن منتج...">
@@ -105,7 +110,7 @@
                                             <th>المنتج (عربي)</th>
                                             <th>المنتج (انجليزي)</th>
                                             <th>إجمالي العهدة الفعلية</th>
-                                            <th>المحجوز حالياً (نشط/موافق)</th>
+                                            <th>المحجوز حالياً (نشط اليوم)</th>
                                             <th>المتاح فعلياً الآن</th>
                                         </tr>
                                     </thead>
@@ -125,11 +130,12 @@
                     <div class="card">
                         <div class="card-header">
                             <h4><i class="fas fa-calendar-alt"></i> الحجوزات القادمة (ملخص)</h4>
+                            <small class="text-muted">انقر على أي يوم لعرض التفاصيل</small>
                         </div>
                         <div class="card-body">
-                            <ul id="upcoming-reservations-list" class="list-group">
+                            <div id="upcoming-reservations-list">
                                 <!-- Data will be populated by JS -->
-                            </ul>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -137,6 +143,7 @@
                     <div class="card">
                         <div class="card-header">
                             <h4><i class="fas fa-history"></i> الحجوزات المنتهية مؤخراً (آخر 10)</h4>
+                            <small class="text-muted">انقر على أي حجز لعرض التفاصيل</small>
                         </div>
                         <div class="card-body">
                             <div class="table-responsive">
@@ -158,17 +165,226 @@
                 </div>
             </div>
             
-            <!-- Full Reservations View (Optional - can be very long) -->
+            <!-- Full Reservations View (Enhanced Table) -->
             <div class="row mt-4">
                 <div class="col-12">
                     <div class="card">
                         <div class="card-header">
-                            <h4><i class="fas fa-clipboard-list"></i> جميع الحجوزات (بيانات خام من اللقطة)</h4>
-                            <input type="text" id="all-reservations-search" class="form-control mt-2" placeholder="ابحث في الحجوزات (بالبريد أو اسم المنتج)...">
+                            <h4><i class="fas fa-clipboard-list"></i> جميع الحجوزات (جدول تفاعلي)</h4>
+                            <div class="row mt-2">
+                                <div class="col-md-3">
+                                    <input type="text" id="reservations-table-search" class="form-control" placeholder="ابحث في الحجوزات...">
+                                </div>
+                                <div class="col-md-2">
+                                    <select id="status-filter" class="form-control">
+                                        <option value="">جميع الحالات</option>
+                                        <option value="Active">نشط</option>
+                                        <option value="Approved">معتمد</option>
+                                        <option value="Completed">مكتمل</option>
+                                        <option value="Declined">مرفوض</option>
+                                        <option value="Pending">في الانتظار</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-2">
+                                    <select id="user-filter" class="form-control">
+                                        <option value="">جميع المستخدمين</option>
+                                        <!-- Options will be populated by JS -->
+                                    </select>
+                                </div>
+                                <div class="col-md-2">
+                                    <select id="unit-filter" class="form-control">
+                                        <option value="">جميع الوحدات</option>
+                                        <!-- Options will be populated by JS -->
+                                    </select>
+                                </div>
+                                <div class="col-md-2">
+                                    <select id="date-filter" class="form-control">
+                                        <option value="">جميع التواريخ</option>
+                                        <option value="today">اليوم</option>
+                                        <option value="this-week">هذا الأسبوع</option>
+                                        <option value="this-month">هذا الشهر</option>
+                                        <option value="past">منتهية</option>
+                                        <option value="future">قادمة</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-1">
+                                    <button id="clear-filters-btn" class="btn btn-outline-secondary btn-block">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                </div>
+                            </div>
                         </div>
-                        <div class="card-body" style="max-height: 500px; overflow-y: auto;">
-                            <div id="all-reservations-raw-data" class="json-display">
-                                <p class="text-muted">سيتم عرض بيانات الحجوزات هنا بعد تحديث اللقطة.</p>
+                        <div class="card-body p-0">
+                            <div class="table-responsive">
+                                <table class="table table-hover mb-0" id="reservations-table">
+                                    <thead class="thead-light">
+                                        <tr>
+                                            <th>رقم الحجز</th>
+                                            <th>المستخدم</th>
+                                            <th>الحالة</th>
+                                            <th>تاريخ البداية</th>
+                                            <th>تاريخ النهاية</th>
+                                            <th>عدد العهد</th>
+                                            <th>تاريخ الإنشاء</th>
+                                            <th>الإجراءات</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="reservations-table-body">
+                                        <!-- Data will be populated by JS -->
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div id="reservations-table-empty" class="text-center p-4 hidden">
+                                <i class="fas fa-search text-muted" style="font-size: 3rem;"></i>
+                                <p class="text-muted mt-2">لا توجد حجوزات تطابق معايير البحث</p>
+                            </div>
+                            <div id="reservations-pagination" class="d-flex justify-content-between align-items-center p-3 border-top">
+                                <div>
+                                    <span id="reservations-count-info" class="text-muted"></span>
+                                </div>
+                                <div>
+                                    <button id="prev-page-btn" class="btn btn-sm btn-outline-primary ml-2" disabled>
+                                        <i class="fas fa-chevron-right"></i> السابق
+                                    </button>
+                                    <span id="page-info" class="mx-2"></span>
+                                    <button id="next-page-btn" class="btn btn-sm btn-outline-primary" disabled>
+                                        التالي <i class="fas fa-chevron-left"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Data Visualization Section -->
+            <div class="row mt-4" id="data-visualization-section">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h4><i class="fas fa-chart-bar"></i> تحليل البيانات المفلترة</h4>
+                            <small class="text-muted">إحصائيات وتحليلات بناءً على النتائج المفلترة</small>
+                        </div>
+                        <div class="card-body">
+                            <!-- Summary Statistics -->
+                            <div class="row mb-4">
+                                <div class="col-md-3">
+                                    <div class="stat-card bg-primary text-white">
+                                        <div class="stat-icon">
+                                            <i class="fas fa-clipboard-list"></i>
+                                        </div>
+                                        <div class="stat-content">
+                                            <h3 id="filtered-total-reservations">0</h3>
+                                            <p>إجمالي الحجوزات</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="stat-card bg-success text-white">
+                                        <div class="stat-icon">
+                                            <i class="fas fa-boxes"></i>
+                                        </div>
+                                        <div class="stat-content">
+                                            <h3 id="filtered-total-items">0</h3>
+                                            <p>إجمالي العهد المحجوزة</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="stat-card bg-info text-white">
+                                        <div class="stat-icon">
+                                            <i class="fas fa-users"></i>
+                                        </div>
+                                        <div class="stat-content">
+                                            <h3 id="filtered-unique-users">0</h3>
+                                            <p>المستخدمين المختلفين</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="stat-card bg-warning text-dark">
+                                        <div class="stat-icon">
+                                            <i class="fas fa-calendar-alt"></i>
+                                        </div>
+                                        <div class="stat-content">
+                                            <h3 id="filtered-date-range">-</h3>
+                                            <p>النطاق الزمني</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Charts Section -->
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="chart-container">
+                                        <h5><i class="fas fa-chart-line"></i> الحجوزات عبر الوقت</h5>
+                                        <canvas id="reservations-timeline-chart" width="400" height="200"></canvas>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="chart-container">
+                                        <h5><i class="fas fa-chart-pie"></i> توزيع الحالات</h5>
+                                        <canvas id="status-distribution-chart" width="400" height="200"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="row mt-4">
+                                <div class="col-md-6">
+                                    <div class="chart-container">
+                                        <h5><i class="fas fa-chart-bar"></i> أكثر العهد حجزاً</h5>
+                                        <canvas id="top-items-chart" width="400" height="200"></canvas>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="chart-container">
+                                        <h5><i class="fas fa-user-chart"></i> أكثر المستخدمين نشاطاً</h5>
+                                        <canvas id="top-users-chart" width="400" height="200"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Detailed Tables -->
+                            <div class="row mt-4">
+                                <div class="col-md-6">
+                                    <div class="table-container">
+                                        <h5><i class="fas fa-list"></i> تفاصيل العهد المحجوزة</h5>
+                                        <div class="table-responsive" style="max-height: 300px;">
+                                            <table class="table table-sm">
+                                                <thead>
+                                                    <tr>
+                                                        <th>العهدة</th>
+                                                        <th>العدد الإجمالي</th>
+                                                        <th>عدد الحجوزات</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody id="items-breakdown-table">
+                                                    <!-- Data will be populated by JS -->
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="table-container">
+                                        <h5><i class="fas fa-calendar-check"></i> الحجوزات حسب التاريخ</h5>
+                                        <div class="table-responsive" style="max-height: 300px;">
+                                            <table class="table table-sm">
+                                                <thead>
+                                                    <tr>
+                                                        <th>التاريخ</th>
+                                                        <th>عدد الحجوزات</th>
+                                                        <th>إجمالي العهد</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody id="date-breakdown-table">
+                                                    <!-- Data will be populated by JS -->
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -177,6 +393,28 @@
 
         </div> <!-- /#dashboard-content -->
     </div> <!-- /.container-fluid -->
+
+    <!-- Reservation Details Modal -->
+    <div id="reservation-details-modal" class="modal hidden">
+        <div class="modal-content" style="max-width: 900px;">
+            <span class="close">&times;</span>
+            <h3 id="reservation-modal-title">تفاصيل الحجز</h3>
+            <div id="reservation-modal-content">
+                <!-- Dynamic content will be loaded here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Daily Reservations Modal -->
+    <div id="daily-reservations-modal" class="modal hidden">
+        <div class="modal-content" style="max-width: 1000px;">
+            <span class="close">&times;</span>
+            <h3 id="daily-modal-title">حجوزات اليوم</h3>
+            <div id="daily-modal-content">
+                <!-- Dynamic content will be populated by JS -->
+            </div>
+        </div>
+    </div>
 
     <!-- Firebase SDKs -->
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
@@ -187,6 +425,9 @@
     <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.1/dist/umd/popper.min.js"></script>
     <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    
+    <!-- Chart.js for data visualization -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     
     <script src="admin_dashboard.js"></script>
 </body>
