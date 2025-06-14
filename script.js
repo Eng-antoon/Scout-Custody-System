@@ -1,13 +1,103 @@
 // Firebase Configuration
 const firebaseConfig = {
-  apiKey: "AIzaSyC9lbdaSNyp5enknVnWtecvZ2_ceXgmxqk",
-  authDomain: "scout-custody-system.firebaseapp.com",
-  projectId: "scout-custody-system",
-  storageBucket: "scout-custody-system.firebasestorage.app",
-  messagingSenderId: "770239691256",
-  appId: "1:770239691256:web:7f0df640f157470fa27e0d",
-  measurementId: "G-JQESV1TPV0"
+    apiKey: "AIzaSyC9lbdaSNyp5enknVnWtecvZ2_ceXgmxqk",
+    authDomain: "scout-custody-system.firebaseapp.com",
+    projectId: "scout-custody-system",
+    storageBucket: "scout-custody-system.firebasestorage.app",
+    messagingSenderId: "770239691256",
+    appId: "1:770239691256:web:7f0df640f157470fa27e0d",
+    measurementId: "G-JQESV1TPV0"
 };
+
+// EmailJS Configuration
+// Initialize EmailJS with your public key
+emailjs.init("t1bIyqNal4cnYj8AB"); // Replace with your actual public key
+
+/**
+ * Send email notification when a reservation is created
+ * @param {string} reservationId - The reservation ID
+ * @param {Object} reservationData - The reservation data
+ */
+async function sendReservationEmail(reservationId, reservationData) {
+    try {
+        console.log('📧 Starting email sending process...');
+        console.log('Reservation ID:', reservationId);
+        console.log('Reservation Data:', reservationData);
+        
+        // Validate required data
+        if (!reservationData.items || !Array.isArray(reservationData.items)) {
+            throw new Error('Invalid items data for email');
+        }
+        
+        // Format the items list for email
+        const itemsList = reservationData.items.map(item => 
+            `- ${item.productNameAr || item.productNameEn || 'غير محدد'} (الكمية: ${item.quantity})`
+        ).join('\n');
+        
+        // Format dates for email (better formatting)
+        const formatDateForEmail = (date) => {
+            if (!date) return 'غير محدد';
+            try {
+                return date.toLocaleString('ar-EG', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    hour12: true
+                });
+            } catch (e) {
+                return date.toString();
+            }
+        };
+        
+        const startDate = formatDateForEmail(reservationData.startTime);
+        const endDate = formatDateForEmail(reservationData.endTime);
+        
+        // Email template parameters
+        const templateParams = {
+            to_email: 'antoonkamel20000@outlook.com',
+            reservation_id: reservationId,
+            user_email: reservationData.userEmail || 'غير محدد',
+            recipient_name: reservationData.recipientName || 'غير محدد',
+            recipient_mobile: reservationData.recipientMobile || 'غير محدد',
+            unit: reservationData.unit || 'غير محدد',
+            start_date: startDate,
+            end_date: endDate,
+            items_list: itemsList,
+            total_items: reservationData.items.reduce((sum, item) => sum + (item.quantity || 0), 0)
+        };
+        
+        console.log('📧 Email template parameters:', templateParams);
+        
+        // Check if EmailJS is available
+        if (typeof emailjs === 'undefined') {
+            throw new Error('EmailJS library is not loaded');
+        }
+        
+        // Send email using EmailJS
+        console.log('📧 Sending email via EmailJS...');
+        const response = await emailjs.send(
+            'service_bntrcic',    // Your EmailJS service ID
+            'template_6zrqc8t',   // Your EmailJS template ID
+            templateParams
+        );
+        
+        console.log('📧 Email sent successfully:', response);
+        showToast('تم إرسال إشعار بالبريد الإلكتروني بنجاح', 'success');
+        
+    } catch (error) {
+        console.error('❌ Error sending email:', error);
+        console.error('Error details:', {
+            message: error.message,
+            status: error.status,
+            text: error.text
+        });
+        
+        // Show error to user for debugging (you can remove this later)
+        showToast(`خطأ في إرسال البريد الإلكتروني: ${error.message}`, 'warning');
+    }
+}
 
 // Initialize Firebase
 firebase.initializeApp(firebaseConfig);
@@ -777,9 +867,11 @@ if (finalizeRequestForm) {
             
             // STEP 2: Create reservation using Firestore transaction with pre-calculated availability
             const requestRef = db.collection('reservations').doc();
+            let itemsForFirestore = []; // Declare outside transaction scope
             
             await db.runTransaction(async (transaction) => {
-                const itemsForFirestore = [];
+                // Reset the array inside transaction
+                itemsForFirestore = [];
 
                 // --- Time-Based Availability Check Logic (using pre-calculated data) ---
                 for (const cartItem of currentCart) {
@@ -853,6 +945,26 @@ if (finalizeRequestForm) {
             }); // End of db.runTransaction
 
             showToast('تم إنشاء طلب الحجز بنجاح (مع فحص التوافر).', 'success');
+            
+            // Send email notification after successful reservation creation
+            // Create a copy of the items for email to ensure data integrity
+            const emailItems = itemsForFirestore.map(item => ({
+                productId: item.productId,
+                productNameEn: item.productNameEn,
+                productNameAr: item.productNameAr,
+                quantity: item.quantity
+            }));
+            
+            await sendReservationEmail(requestRef.id, {
+                userEmail: auth.currentUser.email,
+                recipientName: recipientName,
+                recipientMobile: recipientMobile,
+                unit: unit,
+                startTime: requestedStartTime,
+                endTime: requestedEndTime,
+                items: emailItems
+            });
+            
             finalizeRequestForm.reset();
             currentCart = []; // Clear the cart
             renderCurrentCart(); // Update UI
