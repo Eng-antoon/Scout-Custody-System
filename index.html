@@ -133,6 +133,28 @@
                                     <i class="fas fa-exchange-alt"></i>
                                     <span>نظام الطلبات</span>
                                 </button>
+                                <!-- Toast Demo Section -->
+                                <div class="management-btn" style="background: linear-gradient(135deg, #6c5ce7 0%, #a29bfe 100%); cursor: default;">
+                                    <i class="fas fa-bell"></i>
+                                    <div style="font-size: 0.9rem; margin-top: 0.5rem;">
+                                        <div style="margin-bottom: 0.5rem; font-weight: 600;">تجربة التنبيهات الجديدة:</div>
+                                        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; justify-content: center; margin-bottom: 0.5rem;">
+                                            <button class="btn btn-sm btn-success" onclick="showToast('تم الحفظ بنجاح!', 'success')" style="font-size: 0.75rem; padding: 0.25rem 0.5rem;">نجح</button>
+                                            <button class="btn btn-sm btn-danger" onclick="showToast('حدث خطأ في العملية', 'error')" style="font-size: 0.75rem; padding: 0.25rem 0.5rem;">خطأ</button>
+                                            <button class="btn btn-sm btn-warning" onclick="showToast('تحذير: يرجى التحقق من البيانات', 'warning')" style="font-size: 0.75rem; padding: 0.25rem 0.5rem;">تحذير</button>
+                                            <button class="btn btn-sm btn-info" onclick="showToast('معلومات مفيدة للمستخدم', 'info')" style="font-size: 0.75rem; padding: 0.25rem 0.5rem;">معلومات</button>
+                                        </div>
+                                        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; justify-content: center; margin-bottom: 0.5rem;">
+                                            <button class="btn btn-sm btn-primary" onclick="let id = showLoadingToast('جاري حفظ البيانات...'); setTimeout(() => hideLoadingToast(id), 3000);" style="font-size: 0.75rem; padding: 0.25rem 0.5rem;">تحميل</button>
+                                            <button class="btn btn-sm btn-secondary" onclick="showPersistentToast('هذا إشعار دائم - اضغط × للإغلاق', 'info')" style="font-size: 0.75rem; padding: 0.25rem 0.5rem;">دائم</button>
+                                            <button class="btn btn-sm btn-dark" onclick="showCustomToast('إشعار مخصص مع أيقونة', 'success', '🎉', 'تهانينا!')" style="font-size: 0.75rem; padding: 0.25rem 0.5rem;">مخصص</button>
+                                        </div>
+                                        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; justify-content: center;">
+                                            <button class="btn btn-sm btn-outline-warning" onclick="showConfirmationToast('هل تريد حذف هذا العنصر؟', () => showToast('تم الحذف!', 'success'), () => showToast('تم الإلغاء', 'info'))" style="font-size: 0.75rem; padding: 0.25rem 0.5rem;">تأكيد</button>
+                                            <button class="btn btn-sm btn-outline-danger" onclick="clearAllToasts()" style="font-size: 0.75rem; padding: 0.25rem 0.5rem;">مسح الكل</button>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>

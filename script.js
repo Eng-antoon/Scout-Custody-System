@@ -226,39 +226,196 @@ document.addEventListener('DOMContentLoaded', () => {
 // Utility Functions
 
 /**
- * Display toast notification to user
+ * Display modern toast notification to user
  * @param {string} message - Message to display
  * @param {string} type - Type of toast (success, error, warning, info)
+ * @param {number} duration - Duration in milliseconds (default: 5000)
  */
-function showToast(message, type = 'info') {
+function showToast(message, type = 'info', duration = 5000) {
     const toastContainer = document.getElementById('toast-container');
-    const toastId = 'toast_' + Date.now();
+    const toastId = 'toast_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
     
+    // Define icons and titles for each type
+    const toastConfig = {
+        success: {
+            icon: '✓',
+            title: 'نجح',
+            ariaLive: 'polite'
+        },
+        error: {
+            icon: '✕',
+            title: 'خطأ',
+            ariaLive: 'assertive'
+        },
+        warning: {
+            icon: '⚠',
+            title: 'تحذير',
+            ariaLive: 'assertive'
+        },
+        info: {
+            icon: 'ℹ',
+            title: 'معلومات',
+            ariaLive: 'polite'
+        }
+    };
+    
+    const config = toastConfig[type] || toastConfig.info;
+    
+    // Create toast HTML with modern structure
     const toastHTML = `
-        <div id="${toastId}" class="toast toast-${type}" role="alert" aria-live="assertive" aria-atomic="true" data-delay="5000">
+        <div id="${toastId}" class="toast toast-${type}" role="alert" aria-live="${config.ariaLive}" aria-atomic="true">
             <div class="toast-header">
-                <strong class="mr-auto">
-                    ${type === 'success' ? 'نجح' : type === 'error' ? 'خطأ' : type === 'warning' ? 'تحذير' : 'معلومات'}
-                </strong>
-                <button type="button" class="ml-2 mb-1 close" data-dismiss="toast" aria-label="Close">
-                    <span aria-hidden="true">&times;</span>
+                <div class="toast-icon">${config.icon}</div>
+                <div class="toast-title">${config.title}</div>
+                <button type="button" class="toast-close" aria-label="إغلاق">
+                    ×
                 </button>
             </div>
             <div class="toast-body">
                 ${message}
             </div>
+            <div class="toast-progress">
+                <div class="toast-progress-bar"></div>
+            </div>
         </div>
     `;
     
+    // Add toast to container
     toastContainer.insertAdjacentHTML('beforeend', toastHTML);
     
-    // Show the toast using Bootstrap's toast method
-    $(`#${toastId}`).toast('show');
+    const toastElement = document.getElementById(toastId);
+    const progressBar = toastElement.querySelector('.toast-progress-bar');
+    const closeButton = toastElement.querySelector('.toast-close');
     
-    // Remove toast from DOM after it's hidden
-    $(`#${toastId}`).on('hidden.bs.toast', function () {
-        this.remove();
+    // Show toast with animation
+    setTimeout(() => {
+        toastElement.classList.add('show');
+    }, 10);
+    
+    // Set up progress bar animation
+    if (progressBar) {
+        progressBar.style.animationDuration = `${duration}ms`;
+    }
+    
+    // Auto-hide functionality
+    let hideTimeout = setTimeout(() => {
+        hideToast(toastElement);
+    }, duration);
+    
+    // Pause on hover
+    toastElement.addEventListener('mouseenter', () => {
+        clearTimeout(hideTimeout);
+        if (progressBar) {
+            progressBar.style.animationPlayState = 'paused';
+        }
     });
+    
+    // Resume on mouse leave
+    toastElement.addEventListener('mouseleave', () => {
+        const remainingTime = getRemainingTime(progressBar, duration);
+        if (remainingTime > 0) {
+            hideTimeout = setTimeout(() => {
+                hideToast(toastElement);
+            }, remainingTime);
+            if (progressBar) {
+                progressBar.style.animationPlayState = 'running';
+            }
+        }
+    });
+    
+    // Close button functionality
+    closeButton.addEventListener('click', (e) => {
+        e.preventDefault();
+        clearTimeout(hideTimeout);
+        hideToast(toastElement);
+    });
+    
+    // Keyboard accessibility
+    toastElement.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            clearTimeout(hideTimeout);
+            hideToast(toastElement);
+        }
+    });
+    
+    // Make toast focusable for accessibility
+    toastElement.setAttribute('tabindex', '0');
+    
+    return toastId;
+}
+
+/**
+ * Hide toast with animation
+ * @param {HTMLElement} toastElement - Toast element to hide
+ */
+function hideToast(toastElement) {
+    if (!toastElement || toastElement.classList.contains('hiding')) return;
+    
+    toastElement.classList.add('hiding');
+    toastElement.classList.remove('show');
+    
+    // Remove from DOM after animation
+    setTimeout(() => {
+        if (toastElement && toastElement.parentNode) {
+            toastElement.parentNode.removeChild(toastElement);
+        }
+    }, 300);
+}
+
+/**
+ * Get remaining time for progress bar animation
+ * @param {HTMLElement} progressBar - Progress bar element
+ * @param {number} totalDuration - Total duration in milliseconds
+ * @returns {number} Remaining time in milliseconds
+ */
+function getRemainingTime(progressBar, totalDuration) {
+    if (!progressBar) return 0;
+    
+    const computedStyle = window.getComputedStyle(progressBar);
+    const transform = computedStyle.transform;
+    
+    if (transform === 'none') return totalDuration;
+    
+    // Extract scale value from transform matrix
+    const matrix = transform.match(/matrix\(([^)]+)\)/);
+    if (!matrix) return totalDuration;
+    
+    const values = matrix[1].split(',');
+    const scaleX = parseFloat(values[0]);
+    
+    // Calculate remaining time based on scale
+    return Math.max(0, totalDuration * scaleX);
+}
+
+/**
+ * Clear all toasts
+ */
+function clearAllToasts() {
+    const toastContainer = document.getElementById('toast-container');
+    const toasts = toastContainer.querySelectorAll('.toast');
+    
+    toasts.forEach(toast => {
+        hideToast(toast);
+    });
+}
+
+/**
+ * Show toast with custom duration
+ * @param {string} message - Message to display
+ * @param {string} type - Type of toast
+ * @param {number} duration - Duration in milliseconds
+ */
+function showToastWithDuration(message, type = 'info', duration = 5000) {
+    return showToast(message, type, duration);
+}
+
+/**
+ * Show persistent toast (doesn't auto-hide)
+ * @param {string} message - Message to display
+ * @param {string} type - Type of toast
+ */
+function showPersistentToast(message, type = 'info') {
+    return showToast(message, type, Infinity);
 }
 
 /**
@@ -896,16 +1053,26 @@ function openEditProductModal(productId, productData) {
  * @param {string} productName - Product name for confirmation
  */
 function deleteProduct(productId, productName) {
-    if (confirm(`هل أنت متأكد من حذف المنتج "${productName}"؟`)) {
-        db.collection('products').doc(productId).delete()
-            .then(() => {
-                showToast('تم حذف المنتج بنجاح', 'success');
-            })
-            .catch((error) => {
+    showConfirmationToast(
+        `هل أنت متأكد من حذف المنتج "${productName}"؟`,
+        async () => {
+            // User confirmed deletion
+            try {
+                await db.collection('products').doc(productId).delete();
+                showSuccessToast('تم حذف المنتج بنجاح');
+                loadAdminProducts(); // Reload the products table
+            } catch (error) {
                 console.error('Error deleting product:', error);
-                showToast('خطأ في حذف المنتج: ' + error.message, 'error');
-            });
-    }
+                showErrorToast('خطأ في حذف المنتج: ' + error.message);
+            }
+        },
+        () => {
+            // User cancelled deletion
+            showInfoToast('تم إلغاء عملية الحذف');
+        },
+        'حذف',
+        'إلغاء'
+    );
 }
 
 /**
@@ -2097,17 +2264,26 @@ function hideEditUserModal() {
  * @param {string} userEmail - User email for confirmation
  */
 function deleteUser(userId, userEmail) {
-    if (confirm(`هل أنت متأكد من حذف المستخدم "${userEmail}"؟`)) {
-        db.collection('users').doc(userId).delete()
-            .then(() => {
-                showToast('تم حذف المستخدم بنجاح', 'success');
-                loadUsers(); // Refresh the list
-            })
-            .catch((error) => {
+    showConfirmationToast(
+        `هل أنت متأكد من حذف المستخدم "${userEmail}"؟`,
+        async () => {
+            // User confirmed deletion
+            try {
+                await db.collection('users').doc(userId).delete();
+                showSuccessToast('تم حذف المستخدم بنجاح');
+                loadUsers(); // Reload the users table
+            } catch (error) {
                 console.error('Error deleting user:', error);
-                showToast('خطأ في حذف المستخدم: ' + error.message, 'error');
-            });
-    }
+                showErrorToast('خطأ في حذف المستخدم: ' + error.message);
+            }
+        },
+        () => {
+            // User cancelled deletion
+            showInfoToast('تم إلغاء عملية الحذف');
+        },
+        'حذف',
+        'إلغاء'
+    );
 }
 
 // Reservation Management Functions
@@ -3003,32 +3179,49 @@ if (reservationDetailsModal) {
  * @param {string} reservationId - Reservation document ID
  */
 async function approveReservation(reservationId) {
-    if (!confirm('هل أنت متأكد من قبول هذا الطلب؟')) {
-        return;
-    }
-    
-    try {
-        const reservationRef = db.collection('reservations').doc(reservationId);
-        
-        // Create activity entry
-        const activityEntry = createActivityEntry(
-            'approved',
-            auth.currentUser.email,
-            'تم قبول الطلب من قبل المدير',
-            { approved_by_admin: true }
-        );
-        
-        await reservationRef.update({
-            status: 'Approved',
-            updated_at: firebase.firestore.FieldValue.serverTimestamp(),
-            activity_history: firebase.firestore.FieldValue.arrayUnion(activityEntry)
-        });
-        
-        showToast('تم قبول الطلب بنجاح', 'success');
-    } catch (error) {
-        console.error('Error approving reservation:', error);
-        showToast('خطأ في قبول الطلب: ' + error.message, 'error');
-    }
+    showConfirmationToast(
+        'هل أنت متأكد من قبول هذا الطلب؟',
+        async () => {
+            // User confirmed approval
+            try {
+                const reservationRef = db.collection('reservations').doc(reservationId);
+                const reservationDoc = await reservationRef.get();
+                
+                if (!reservationDoc.exists) {
+                    showErrorToast('الطلب غير موجود');
+                    return;
+                }
+                
+                const reservationData = reservationDoc.data();
+                
+                // Create activity entry
+                const activityEntry = createActivityEntry(
+                    'approved',
+                    auth.currentUser.email,
+                    'تم قبول الطلب من قبل الإدارة'
+                );
+                
+                // Update reservation status and add activity
+                await reservationRef.update({
+                    status: 'Approved',
+                    approved_at: firebase.firestore.FieldValue.serverTimestamp(),
+                    approved_by: auth.currentUser.email,
+                    activity: firebase.firestore.FieldValue.arrayUnion(activityEntry)
+                });
+                
+                showSuccessToast('تم قبول الطلب بنجاح');
+            } catch (error) {
+                console.error('Error approving reservation:', error);
+                showErrorToast('خطأ في قبول الطلب: ' + error.message);
+            }
+        },
+        () => {
+            // User cancelled approval
+            showInfoToast('تم إلغاء عملية القبول');
+        },
+        'قبول',
+        'إلغاء'
+    );
 }
 
 /**
@@ -3037,74 +3230,53 @@ async function approveReservation(reservationId) {
  * @param {Object} reservationData - Reservation data
  */
 async function declineReservation(reservationId, reservationData) {
-    if (!confirm('هل أنت متأكد من رفض هذا الطلب؟ سيصبح متاحاً للحجوزات الأخرى.')) {
-        return;
-    }
-    
-    const reservationRef = db.collection('reservations').doc(reservationId);
-    
-    try {
-        await db.runTransaction(async (transaction) => {
-            const reservDoc = await transaction.get(reservationRef);
-            if (!reservDoc.exists || reservDoc.data().status !== 'Active') {
-                throw new Error("الطلب غير نشط أو غير موجود.");
+    showConfirmationToast(
+        'هل أنت متأكد من رفض هذا الطلب؟ سيصبح متاحاً للحجوزات الأخرى.',
+        async () => {
+            // User confirmed decline
+            try {
+                const batch = db.batch();
+                const reservationRef = db.collection('reservations').doc(reservationId);
+                
+                // Create activity entry
+                const activityEntry = createActivityEntry(
+                    'declined',
+                    auth.currentUser.email,
+                    'تم رفض الطلب من قبل الإدارة'
+                );
+                
+                // Update reservation status
+                batch.update(reservationRef, {
+                    status: 'Declined',
+                    declined_at: firebase.firestore.FieldValue.serverTimestamp(),
+                    declined_by: auth.currentUser.email,
+                    activity: firebase.firestore.FieldValue.arrayUnion(activityEntry)
+                });
+                
+                // Restore stock for all items
+                if (reservationData.items && Array.isArray(reservationData.items)) {
+                    for (const item of reservationData.items) {
+                        const productRef = db.collection('products').doc(item.productId);
+                        batch.update(productRef, {
+                            stock: firebase.firestore.FieldValue.increment(item.quantity)
+                        });
+                    }
+                }
+                
+                await batch.commit();
+                showSuccessToast('تم رفض الطلب. أصبحت العهدة متاحة للحجوزات الأخرى.');
+            } catch (error) {
+                console.error('Error declining reservation:', error);
+                showErrorToast('خطأ في رفض الطلب: ' + error.message);
             }
-            
-            const reservationDataForTx = reservDoc.data();
-            const stockRestoredUpdate = {};
-            
-            // Prepare activity entry
-            let declinedItemsDetails = '';
-            let totalQuantity = 0;
-            
-            // Handle both old and new reservation formats
-            if (reservationDataForTx.items && Array.isArray(reservationDataForTx.items)) {
-                // New multi-item format
-                const itemsDetails = [];
-                for (const item of reservationDataForTx.items) {
-                    // NO LONGER INCREMENTING product.stock_count here
-                    // The items become "available" again because the reservation will no longer be 'Active'
-                    stockRestoredUpdate[`stock_restored_for_items.${item.productId}`] = true;
-                    itemsDetails.push(`${item.productNameAr || item.productNameEn} (${item.quantity})`);
-                    totalQuantity += item.quantity;
-                }
-                declinedItemsDetails = itemsDetails.join(', ');
-            } else {
-                // Old single-item format (backward compatibility)
-                if (reservationDataForTx.product_id && reservationDataForTx.quantity) {
-                    // NO LONGER INCREMENTING product.stock_count here
-                    stockRestoredUpdate[`stock_restored_for_items.${reservationDataForTx.product_id}`] = true;
-                    declinedItemsDetails = `${reservationDataForTx.product_name_ar || reservationDataForTx.product_name_en} (${reservationDataForTx.quantity})`;
-                    totalQuantity = reservationDataForTx.quantity;
-                }
-            }
-            
-            // Create activity entry
-            const activityEntry = createActivityEntry(
-                'declined',
-                auth.currentUser.email,
-                `تم رفض الطلب وأصبحت العهدة متاحة للحجوزات الأخرى: ${declinedItemsDetails}`,
-                { 
-                    declined_by_admin: true,
-                    total_quantity: totalQuantity,
-                    declined_items: declinedItemsDetails
-                }
-            );
-            
-            transaction.update(reservationRef, {
-                status: 'Declined',
-                ...stockRestoredUpdate,
-                all_items_stock_restored: true,
-                updated_at: firebase.firestore.FieldValue.serverTimestamp(),
-                activity_history: firebase.firestore.FieldValue.arrayUnion(activityEntry)
-            });
-        });
-        
-        showToast('تم رفض الطلب. أصبحت العهدة متاحة للحجوزات الأخرى.', 'success');
-    } catch (error) {
-        console.error('Error declining reservation:', error);
-        showToast('خطأ في رفض الطلب: ' + error.message, 'error');
-    }
+        },
+        () => {
+            // User cancelled decline
+            showInfoToast('تم إلغاء عملية الرفض');
+        },
+        'رفض',
+        'إلغاء'
+    );
 }
 
 /**
@@ -3113,74 +3285,53 @@ async function declineReservation(reservationId, reservationData) {
  * @param {Object} reservationData - Reservation data
  */
 async function cancelReservation(reservationId, reservationData) {
-    if (!confirm('هل أنت متأكد من إلغاء هذا الطلب؟ ستصبح العهدة متاحة للحجوزات الأخرى.')) {
-        return;
-    }
-    
-    const reservationRef = db.collection('reservations').doc(reservationId);
-    
-    try {
-        await db.runTransaction(async (transaction) => {
-            const reservDoc = await transaction.get(reservationRef);
-            if (!reservDoc.exists || reservDoc.data().status !== 'Active') {
-                throw new Error("الطلب غير نشط أو غير موجود.");
+    showConfirmationToast(
+        'هل أنت متأكد من إلغاء هذا الطلب؟ ستصبح العهدة متاحة للحجوزات الأخرى.',
+        async () => {
+            // User confirmed cancellation
+            try {
+                const batch = db.batch();
+                const reservationRef = db.collection('reservations').doc(reservationId);
+                
+                // Create activity entry
+                const activityEntry = createActivityEntry(
+                    'cancelled',
+                    auth.currentUser.email,
+                    'تم إلغاء الطلب من قبل المستخدم'
+                );
+                
+                // Update reservation status
+                batch.update(reservationRef, {
+                    status: 'Cancelled',
+                    cancelled_at: firebase.firestore.FieldValue.serverTimestamp(),
+                    cancelled_by: auth.currentUser.email,
+                    activity: firebase.firestore.FieldValue.arrayUnion(activityEntry)
+                });
+                
+                // Restore stock for all items
+                if (reservationData.items && Array.isArray(reservationData.items)) {
+                    for (const item of reservationData.items) {
+                        const productRef = db.collection('products').doc(item.productId);
+                        batch.update(productRef, {
+                            stock: firebase.firestore.FieldValue.increment(item.quantity)
+                        });
+                    }
+                }
+                
+                await batch.commit();
+                showSuccessToast('تم إلغاء الطلب. أصبحت العهدة متاحة للحجوزات الأخرى.');
+            } catch (error) {
+                console.error('Error cancelling reservation:', error);
+                showErrorToast('خطأ في إلغاء الطلب: ' + error.message);
             }
-            
-            const reservationDataForTx = reservDoc.data();
-            const stockRestoredUpdate = {};
-            
-            // Prepare activity entry
-            let cancelledItemsDetails = '';
-            let totalQuantity = 0;
-            
-            // Handle both old and new reservation formats
-            if (reservationDataForTx.items && Array.isArray(reservationDataForTx.items)) {
-                // New multi-item format
-                const itemsDetails = [];
-                for (const item of reservationDataForTx.items) {
-                    // NO LONGER INCREMENTING product.stock_count here
-                    // The items become "available" again because the reservation will no longer be 'Active'
-                    stockRestoredUpdate[`stock_restored_for_items.${item.productId}`] = true;
-                    itemsDetails.push(`${item.productNameAr || item.productNameEn} (${item.quantity})`);
-                    totalQuantity += item.quantity;
-                }
-                cancelledItemsDetails = itemsDetails.join(', ');
-            } else {
-                // Old single-item format (backward compatibility)
-                if (reservationDataForTx.product_id && reservationDataForTx.quantity) {
-                    // NO LONGER INCREMENTING product.stock_count here
-                    stockRestoredUpdate[`stock_restored_for_items.${reservationDataForTx.product_id}`] = true;
-                    cancelledItemsDetails = `${reservationDataForTx.product_name_ar || reservationDataForTx.product_name_en} (${reservationDataForTx.quantity})`;
-                    totalQuantity = reservationDataForTx.quantity;
-                }
-            }
-            
-            // Create activity entry
-            const activityEntry = createActivityEntry(
-                'cancelled',
-                auth.currentUser.email,
-                `تم إلغاء الطلب من قبل المستخدم وأصبحت العهدة متاحة للحجوزات الأخرى: ${cancelledItemsDetails}`,
-                { 
-                    cancelled_by_user: true,
-                    total_quantity: totalQuantity,
-                    cancelled_items: cancelledItemsDetails
-                }
-            );
-            
-            transaction.update(reservationRef, {
-                status: 'Cancelled',
-                ...stockRestoredUpdate,
-                all_items_stock_restored: true,
-                updated_at: firebase.firestore.FieldValue.serverTimestamp(),
-                activity_history: firebase.firestore.FieldValue.arrayUnion(activityEntry)
-            });
-        });
-        
-        showToast('تم إلغاء الطلب. أصبحت العهدة متاحة للحجوزات الأخرى.', 'success');
-    } catch (error) {
-        console.error('Error cancelling reservation:', error);
-        showToast('خطأ في إلغاء الطلب: ' + error.message, 'error');
-    }
+        },
+        () => {
+            // User cancelled the cancellation
+            showInfoToast('تم إلغاء عملية الإلغاء');
+        },
+        'إلغاء الطلب',
+        'تراجع'
+    );
 }
 
 /**
@@ -3190,88 +3341,84 @@ async function cancelReservation(reservationId, reservationData) {
  * @param {string} itemName - Name of the item for confirmation
  */
 async function rejectSingleItem(reservationId, itemIndex, itemName) {
-    if (!confirm(`هل أنت متأكد من رفض المنتج "${itemName}" من هذا الطلب؟ سيصبح متاحاً للحجوزات الأخرى.`)) {
-        return;
-    }
-    
-    const reservationRef = db.collection('reservations').doc(reservationId);
-    
-    try {
-        let wasLastItem = false;
-        
-        await db.runTransaction(async (transaction) => {
-            const reservDoc = await transaction.get(reservationRef);
-            if (!reservDoc.exists || reservDoc.data().status !== 'Active') {
-                throw new Error("الطلب غير نشط أو غير موجود.");
-            }
-            
-            const reservationData = reservDoc.data();
-            
-            // Only works with new multi-item format
-            if (!reservationData.items || !Array.isArray(reservationData.items)) {
-                throw new Error("هذه الوظيفة تعمل فقط مع الطلبات متعددة المنتجات.");
-            }
-            
-            if (itemIndex < 0 || itemIndex >= reservationData.items.length) {
-                throw new Error("المنتج المحدد غير موجود.");
-            }
-            
-            const itemToReject = reservationData.items[itemIndex];
-            
-            // NO LONGER INCREMENTING product.stock_count here
-            // The item becomes "available" again because it will no longer be in an 'Active' reservation
-            
-            // Remove the item from the reservation
-            const updatedItems = reservationData.items.filter((_, index) => index !== itemIndex);
-            
-            // Check if this was the last item
-            wasLastItem = updatedItems.length === 0;
-            
-            // Create activity entry
-            const activityEntry = createActivityEntry(
-                wasLastItem ? 'declined' : 'item_rejected',
-                auth.currentUser.email,
-                wasLastItem ? 
-                    `تم رفض آخر منتج في الطلب "${itemToReject.productNameAr || itemToReject.productNameEn}" وإلغاء الطلب بالكامل` :
-                    `تم رفض المنتج "${itemToReject.productNameAr || itemToReject.productNameEn}" من الطلب`,
-                { 
-                    rejected_by_admin: true,
-                    rejected_item: {
-                        productId: itemToReject.productId,
-                        productName: itemToReject.productNameAr || itemToReject.productNameEn,
-                        quantity: itemToReject.quantity
-                    },
-                    was_last_item: wasLastItem,
-                    remaining_items_count: updatedItems.length
+    showConfirmationToast(
+        `هل أنت متأكد من رفض المنتج "${itemName}" من هذا الطلب؟ سيصبح متاحاً للحجوزات الأخرى.`,
+        async () => {
+            // User confirmed rejection
+            try {
+                const reservationRef = db.collection('reservations').doc(reservationId);
+                const reservationDoc = await reservationRef.get();
+                
+                if (!reservationDoc.exists) {
+                    showErrorToast('الطلب غير موجود');
+                    return;
                 }
-            );
-            
-            // Prepare update object
-            const updateData = {
-                items: updatedItems,
-                [`stock_restored_for_items.${itemToReject.productId}`]: true,
-                updated_at: firebase.firestore.FieldValue.serverTimestamp(),
-                activity_history: firebase.firestore.FieldValue.arrayUnion(activityEntry)
-            };
-            
-            // If no items left, decline the entire reservation
-            if (wasLastItem) {
-                updateData.status = 'Declined';
-                updateData.all_items_stock_restored = true;
+                
+                const reservationData = reservationDoc.data();
+                
+                if (!reservationData.items || !Array.isArray(reservationData.items) || itemIndex >= reservationData.items.length) {
+                    showErrorToast('المنتج غير موجود في الطلب');
+                    return;
+                }
+                
+                const rejectedItem = reservationData.items[itemIndex];
+                const updatedItems = [...reservationData.items];
+                updatedItems.splice(itemIndex, 1);
+                
+                const batch = db.batch();
+                
+                // Create activity entry
+                const activityEntry = createActivityEntry(
+                    'item_rejected',
+                    auth.currentUser.email,
+                    `تم رفض المنتج: ${itemName}`
+                );
+                
+                // Check if this was the last item
+                const wasLastItem = updatedItems.length === 0;
+                
+                if (wasLastItem) {
+                    // If no items left, mark reservation as declined
+                    batch.update(reservationRef, {
+                        status: 'Declined',
+                        items: updatedItems,
+                        declined_at: firebase.firestore.FieldValue.serverTimestamp(),
+                        declined_by: auth.currentUser.email,
+                        activity: firebase.firestore.FieldValue.arrayUnion(activityEntry)
+                    });
+                } else {
+                    // Otherwise, just remove the item
+                    batch.update(reservationRef, {
+                        items: updatedItems,
+                        activity: firebase.firestore.FieldValue.arrayUnion(activityEntry)
+                    });
+                }
+                
+                // Restore stock for the rejected item
+                const productRef = db.collection('products').doc(rejectedItem.productId);
+                batch.update(productRef, {
+                    stock: firebase.firestore.FieldValue.increment(rejectedItem.quantity)
+                });
+                
+                await batch.commit();
+                
+                if (wasLastItem) {
+                    showSuccessToast('تم رفض آخر منتج وإلغاء الطلب بالكامل. أصبحت العهدة متاحة للحجوزات الأخرى.');
+                } else {
+                    showSuccessToast('تم رفض المنتج من الطلب. أصبح متاحاً للحجوزات الأخرى.');
+                }
+            } catch (error) {
+                console.error('Error rejecting single item:', error);
+                showErrorToast('خطأ في رفض المنتج: ' + error.message);
             }
-            
-            transaction.update(reservationRef, updateData);
-        });
-        
-        if (wasLastItem) {
-            showToast('تم رفض آخر منتج وإلغاء الطلب بالكامل. أصبحت العهدة متاحة للحجوزات الأخرى.', 'success');
-        } else {
-            showToast('تم رفض المنتج من الطلب. أصبح متاحاً للحجوزات الأخرى.', 'success');
-        }
-    } catch (error) {
-        console.error('Error rejecting single item:', error);
-        showToast('خطأ في رفض المنتج: ' + error.message, 'error');
-    }
+        },
+        () => {
+            // User cancelled rejection
+            showInfoToast('تم إلغاء عملية الرفض');
+        },
+        'رفض المنتج',
+        'إلغاء'
+    );
 }
 
 /**
@@ -4221,3 +4368,212 @@ document.addEventListener('keydown', (e) => {
         }
     }
 });
+
+/**
+ * Show persistent toast (doesn't auto-hide)
+ * @param {string} message - Message to display
+ * @param {string} type - Type of toast
+ */
+function showPersistentToast(message, type = 'info') {
+    return showToast(message, type, Infinity);
+}
+
+/**
+ * Show loading toast with spinner
+ * @param {string} message - Loading message
+ * @returns {string} Toast ID for later removal
+ */
+function showLoadingToast(message = 'جاري التحميل...') {
+    const toastContainer = document.getElementById('toast-container');
+    const toastId = 'loading_toast_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+    
+    const toastHTML = `
+        <div id="${toastId}" class="toast toast-info" role="alert" aria-live="polite" aria-atomic="true">
+            <div class="toast-header">
+                <div class="toast-icon">
+                    <div class="spinner-border spinner-border-sm" role="status" style="width: 16px; height: 16px; border-width: 2px;">
+                        <span class="sr-only">Loading...</span>
+                    </div>
+                </div>
+                <div class="toast-title">جاري المعالجة</div>
+            </div>
+            <div class="toast-body">
+                ${message}
+            </div>
+        </div>
+    `;
+    
+    toastContainer.insertAdjacentHTML('beforeend', toastHTML);
+    
+    const toastElement = document.getElementById(toastId);
+    setTimeout(() => {
+        toastElement.classList.add('show');
+    }, 10);
+    
+    return toastId;
+}
+
+/**
+ * Hide loading toast by ID
+ * @param {string} toastId - Toast ID to hide
+ */
+function hideLoadingToast(toastId) {
+    const toastElement = document.getElementById(toastId);
+    if (toastElement) {
+        hideToast(toastElement);
+    }
+}
+
+/**
+ * Show success toast with custom duration
+ * @param {string} message - Success message
+ * @param {number} duration - Duration in milliseconds
+ */
+function showSuccessToast(message, duration = 4000) {
+    return showToast(message, 'success', duration);
+}
+
+/**
+ * Show error toast with longer duration
+ * @param {string} message - Error message
+ * @param {number} duration - Duration in milliseconds
+ */
+function showErrorToast(message, duration = 7000) {
+    return showToast(message, 'error', duration);
+}
+
+/**
+ * Show warning toast
+ * @param {string} message - Warning message
+ * @param {number} duration - Duration in milliseconds
+ */
+function showWarningToast(message, duration = 6000) {
+    return showToast(message, 'warning', duration);
+}
+
+/**
+ * Show info toast
+ * @param {string} message - Info message
+ * @param {number} duration - Duration in milliseconds
+ */
+function showInfoToast(message, duration = 5000) {
+    return showToast(message, 'info', duration);
+}
+
+/**
+ * Show confirmation toast with action buttons
+ * @param {string} message - Confirmation message
+ * @param {Function} onConfirm - Callback for confirm action
+ * @param {Function} onCancel - Callback for cancel action (optional)
+ * @param {string} confirmText - Text for confirm button
+ * @param {string} cancelText - Text for cancel button
+ */
+function showConfirmationToast(message, onConfirm, onCancel = null, confirmText = 'تأكيد', cancelText = 'إلغاء') {
+    const toastContainer = document.getElementById('toast-container');
+    const toastId = 'confirm_toast_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+    
+    const toastHTML = `
+        <div id="${toastId}" class="toast toast-warning" role="alert" aria-live="assertive" aria-atomic="true">
+            <div class="toast-header">
+                <div class="toast-icon">❓</div>
+                <div class="toast-title">تأكيد العملية</div>
+            </div>
+            <div class="toast-body">
+                <div style="margin-bottom: 1rem;">${message}</div>
+                <div style="display: flex; gap: 0.5rem; justify-content: flex-end;">
+                    <button class="btn btn-sm btn-success confirm-btn" style="font-size: 0.8rem; padding: 0.25rem 0.75rem;">
+                        ${confirmText}
+                    </button>
+                    <button class="btn btn-sm btn-secondary cancel-btn" style="font-size: 0.8rem; padding: 0.25rem 0.75rem;">
+                        ${cancelText}
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    toastContainer.insertAdjacentHTML('beforeend', toastHTML);
+    
+    const toastElement = document.getElementById(toastId);
+    const confirmBtn = toastElement.querySelector('.confirm-btn');
+    const cancelBtn = toastElement.querySelector('.cancel-btn');
+    
+    setTimeout(() => {
+        toastElement.classList.add('show');
+    }, 10);
+    
+    // Confirm button handler
+    confirmBtn.addEventListener('click', () => {
+        hideToast(toastElement);
+        if (onConfirm) onConfirm();
+    });
+    
+    // Cancel button handler
+    cancelBtn.addEventListener('click', () => {
+        hideToast(toastElement);
+        if (onCancel) onCancel();
+    });
+    
+    return toastId;
+}
+
+/**
+ * Show toast with custom icon
+ * @param {string} message - Message to display
+ * @param {string} type - Type of toast
+ * @param {string} icon - Custom icon (emoji or HTML)
+ * @param {string} title - Custom title
+ * @param {number} duration - Duration in milliseconds
+ */
+function showCustomToast(message, type = 'info', icon = 'ℹ', title = 'إشعار', duration = 5000) {
+    const toastContainer = document.getElementById('toast-container');
+    const toastId = 'custom_toast_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+    
+    const toastHTML = `
+        <div id="${toastId}" class="toast toast-${type}" role="alert" aria-live="polite" aria-atomic="true">
+            <div class="toast-header">
+                <div class="toast-icon">${icon}</div>
+                <div class="toast-title">${title}</div>
+                <button type="button" class="toast-close" aria-label="إغلاق">
+                    ×
+                </button>
+            </div>
+            <div class="toast-body">
+                ${message}
+            </div>
+            <div class="toast-progress">
+                <div class="toast-progress-bar"></div>
+            </div>
+        </div>
+    `;
+    
+    toastContainer.insertAdjacentHTML('beforeend', toastHTML);
+    
+    const toastElement = document.getElementById(toastId);
+    const progressBar = toastElement.querySelector('.toast-progress-bar');
+    const closeButton = toastElement.querySelector('.toast-close');
+    
+    setTimeout(() => {
+        toastElement.classList.add('show');
+    }, 10);
+    
+    if (progressBar && duration !== Infinity) {
+        progressBar.style.animationDuration = `${duration}ms`;
+    }
+    
+    let hideTimeout;
+    if (duration !== Infinity) {
+        hideTimeout = setTimeout(() => {
+            hideToast(toastElement);
+        }, duration);
+    }
+    
+    // Close button functionality
+    closeButton.addEventListener('click', (e) => {
+        e.preventDefault();
+        if (hideTimeout) clearTimeout(hideTimeout);
+        hideToast(toastElement);
+    });
+    
+    return toastId;
+}

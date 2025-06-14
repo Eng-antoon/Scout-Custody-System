@@ -220,6 +220,8 @@ function updateHeaderTimestamp() {
 }
 
 // --- Authentication & Authorization ---
+let isInitialLoad = true;
+
 auth.onAuthStateChanged(async (user) => {
     if (user) {
         try {
@@ -232,6 +234,7 @@ auth.onAuthStateChanged(async (user) => {
                 dashboardContent.classList.remove('hidden');
                 console.log('Admin user authenticated for dashboard.');
                 loadSnapshotAndDisplay();
+                isInitialLoad = false;
             } else {
                 redirectToLogin("ليس لديك صلاحية الوصول لهذه الصفحة.");
             }
@@ -240,23 +243,42 @@ auth.onAuthStateChanged(async (user) => {
             redirectToLogin("خطأ في التحقق من صلاحيات الدخول.");
         }
     } else {
-        redirectToLogin("يرجى تسجيل الدخول للوصول إلى لوحة التحكم.");
+        if (isInitialLoad) {
+            // Initial load without user - redirect to login
+            redirectToLogin("يرجى تسجيل الدخول للوصول إلى لوحة التحكم.");
+        } else {
+            // User logged out - show success message and redirect
+            showInfoToast("تم تسجيل الخروج بنجاح. سيتم تحويلك لصفحة الدخول الرئيسية.", 3000);
+            setTimeout(() => {
+                window.location.href = 'index.html';
+            }, 2000);
+        }
     }
 });
 
 function redirectToLogin(message) {
-    alert(message + " سيتم تحويلك لصفحة الدخول الرئيسية.");
-    window.location.href = 'index.html'; // Redirect to main login page
+    showWarningToast(message + " سيتم تحويلك لصفحة الدخول الرئيسية.", 4000);
+    setTimeout(() => {
+        window.location.href = 'index.html'; // Redirect to main login page
+    }, 3000);
 }
 
 // Event Listeners
 if (logoutDashboardBtn) {
     logoutDashboardBtn.addEventListener('click', async (e) => {
         e.preventDefault();
-        if (confirm('هل أنت متأكد من تسجيل الخروج؟')) {
-            await auth.signOut();
-            // Redirect handled by onAuthStateChanged
-        }
+        showConfirmationToast(
+            'هل أنت متأكد من تسجيل الخروج؟',
+            async () => {
+                await auth.signOut();
+                // Redirect handled by onAuthStateChanged
+            },
+            () => {
+                showInfoToast('تم إلغاء تسجيل الخروج');
+            },
+            'تسجيل الخروج',
+            'إلغاء'
+        );
     });
 }
 
@@ -270,7 +292,7 @@ if (viewProfileBtn) {
 if (systemSettingsBtn) {
     systemSettingsBtn.addEventListener('click', (e) => {
         e.preventDefault();
-        alert('إعدادات النظام ستكون متاحة قريباً');
+        showInfoToast('إعدادات النظام ستكون متاحة قريباً', 3000);
     });
 }
 
@@ -290,19 +312,19 @@ async function loadSnapshotAndDisplay() {
             const hoursDiff = (now - lastUpdated) / (1000 * 60 * 60);
             if (hoursDiff > AUTO_REFRESH_HOURS) {
                 console.log(`Snapshot is older than ${AUTO_REFRESH_HOURS} hours. Auto-refreshing...`);
-                alert(`البيانات المعروضة قديمة (أكثر من ${AUTO_REFRESH_HOURS} ساعة). سيتم تحديثها تلقائياً الآن.`);
+                showWarningToast(`البيانات المعروضة قديمة (أكثر من ${AUTO_REFRESH_HOURS} ساعة). سيتم تحديثها تلقائياً الآن.`, 6000);
                 await refreshAndStoreSnapshot(); // This will re-load and re-display
             }
         } else {
             console.log('No snapshot found. Triggering initial creation.');
             lastUpdatedTimestampEl.textContent = 'لم يتم الإنشاء بعد';
             snapshotVersionDisplayEl.textContent = 'إصدار: -';
-            alert("لم يتم العثور على لقطة بيانات للنظام. سيتم محاولة إنشائها الآن. قد تستغرق هذه العملية بعض الوقت.");
+            showInfoToast("لم يتم العثور على لقطة بيانات للنظام. سيتم محاولة إنشائها الآن. قد تستغرق هذه العملية بعض الوقت.", 8000);
             await refreshAndStoreSnapshot();
         }
     } catch (error) {
         console.error("Error loading snapshot:", error);
-        alert("خطأ أثناء تحميل بيانات اللوحة: " + error.message);
+        showErrorToast("خطأ أثناء تحميل بيانات اللوحة: " + error.message);
         lastUpdatedTimestampEl.textContent = 'خطأ في التحميل';
     } finally {
         showLoading(false);
@@ -418,11 +440,11 @@ async function refreshAndStoreSnapshot() {
             displaySnapshotData(currentSnapshotData);
         }
         
-        alert("تم تحديث بيانات اللوحة بنجاح!");
+        showInfoToast("تم تحديث بيانات اللوحة بنجاح!");
 
     } catch (error) {
         console.error("Error refreshing snapshot:", error);
-        alert("فشل تحديث بيانات اللوحة: " + error.message + "\nقد يكون حجم البيانات كبيراً جداً. راجع وحدة التحكم.");
+        showErrorToast("فشل تحديث بيانات اللوحة: " + error.message + "\nقد يكون حجم البيانات كبيراً جداً. راجع وحدة التحكم.");
     } finally {
         showLoading(false);
         refreshSnapshotBtn.disabled = false;
