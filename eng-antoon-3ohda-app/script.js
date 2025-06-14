@@ -521,6 +521,17 @@ if (finalizeRequestForm) {
             completeRequestBtn.disabled = true;
             completeRequestBtn.innerHTML = '<span class="spinner-border spinner-border-sm mr-2"></span>جاري المعالجة...';
             
+            // IMPORTANT: Run automatic stock restoration BEFORE creating the reservation
+            // This ensures stock counts are accurate and expired reservations are processed
+            console.log('🔄 Running automatic stock restoration before creating new reservation...');
+            const restorationResult = await automaticStockRestoration(true); // Silent mode for user interactions
+            console.log('✅ Stock restoration completed:', restorationResult);
+            
+            // Inform user if stock was restored
+            if (restorationResult.processedCount > 0) {
+                showToast(`تم تحديث المخزون: استعادة ${restorationResult.processedCount} طلب منتهي الصلاحية`, 'info');
+            }
+            
             // Create reservation using Firestore transaction
             const requestRef = db.collection('reservations').doc(); // Auto-generate ID
             
@@ -2219,35 +2230,72 @@ function addProductToCart(productId, product) {
         return;
     }
     
-    // Check if item already exists in cart
-    const existingItemIndex = currentCart.findIndex(item => item.productId === productId);
-    
-    if (existingItemIndex !== -1) {
-        // Update existing item
-        const newQuantity = currentCart[existingItemIndex].quantity + selectedQuantity;
-        if (newQuantity > product.stock_count) {
-            showToast(`لا يمكن إضافة هذه الكمية. الحد الأقصى المتاح: ${product.stock_count}`, 'warning');
-            return;
+    // Run automatic stock restoration before adding to cart to ensure accurate stock counts
+    console.log('🔄 Running stock restoration check before adding to cart...');
+    automaticStockRestoration(true).then((restorationResult) => { // Silent mode for user interactions
+        console.log('✅ Stock restoration check completed:', restorationResult);
+        
+        // Inform user if stock was restored (but keep it subtle)
+        if (restorationResult.processedCount > 0) {
+            console.log(`Stock restored for ${restorationResult.processedCount} expired reservations`);
         }
-        currentCart[existingItemIndex].quantity = newQuantity;
-        showToast('تم تحديث كمية المنتج في الطلب', 'success');
-    } else {
-        // Add new item
-        currentCart.push({
-            productId: productId,
-            productName: product.name_ar,
-            productNameEn: product.name_en,
-            quantity: selectedQuantity,
-            stockAvailable: product.stock_count
+        
+        // Re-fetch the product to get updated stock count after restoration
+        db.collection('products').doc(productId).get().then((doc) => {
+            if (!doc.exists) {
+                showToast('المنتج غير موجود', 'error');
+                return;
+            }
+            
+            const updatedProduct = doc.data();
+            
+            // Re-validate quantity with updated stock
+            if (selectedQuantity > updatedProduct.stock_count) {
+                showToast(`الكمية المطلوبة أكبر من المتوفر. المتاح حالياً: ${updatedProduct.stock_count}`, 'warning');
+                // Update the UI to show correct stock
+                loadUserProducts(searchQuery);
+                return;
+            }
+            
+            // Check if item already exists in cart
+            const existingItemIndex = currentCart.findIndex(item => item.productId === productId);
+            
+            if (existingItemIndex !== -1) {
+                // Update existing item
+                const newQuantity = currentCart[existingItemIndex].quantity + selectedQuantity;
+                if (newQuantity > updatedProduct.stock_count) {
+                    showToast(`لا يمكن إضافة هذه الكمية. الحد الأقصى المتاح: ${updatedProduct.stock_count}`, 'warning');
+                    return;
+                }
+                currentCart[existingItemIndex].quantity = newQuantity;
+                currentCart[existingItemIndex].stockAvailable = updatedProduct.stock_count; // Update available stock
+                showToast('تم تحديث كمية المنتج في الطلب', 'success');
+            } else {
+                // Add new item
+                currentCart.push({
+                    productId: productId,
+                    productName: updatedProduct.name_ar,
+                    productNameEn: updatedProduct.name_en,
+                    quantity: selectedQuantity,
+                    stockAvailable: updatedProduct.stock_count
+                });
+                showToast('تمت إضافة المنتج للطلب', 'success');
+            }
+            
+            // Reset quantity input
+            quantityInput.value = 1;
+            
+            // Update cart display
+            renderCurrentCart();
+            
+            // Refresh product display to show updated stock counts
+            loadUserProducts(searchQuery);
+            
+        }).catch((error) => {
+            console.error('Error fetching updated product:', error);
+            showToast('خطأ في التحقق من المخزون المحدث', 'error');
         });
-        showToast('تمت إضافة المنتج للطلب', 'success');
-    }
-    
-    // Reset quantity input
-    quantityInput.value = 1;
-    
-    // Update cart display
-    renderCurrentCart();
+    });
 }
 
 /**
@@ -3092,3 +3140,155 @@ function getActivityClass(action) {
             return 'activity-default';
     }
 }
+
+// ============================================================================
+// AUTOMATIC STOCK RESTORATION SYSTEM
+// ============================================================================
+
+/**
+ * Automatic Stock Restoration Function
+ * Checks for expired reservations and restores stock automatically
+ * Runs client-side when users visit the app
+ * @param {boolean} silent - If true, won't show admin notifications (for background/interactive calls)
+ * @returns {Promise<Object>} - Returns information about processed reservations
+ */
+async function automaticStockRestoration(silent = false) {
+    console.log('Starting automatic stock restoration check...');
+    
+    try {
+        const now = firebase.firestore.Timestamp.now();
+        
+        // Query for reservations that need stock restoration
+        const reservationsToRestoreQuery = db.collection('reservations')
+            .where('reservation_end', '<=', now)
+            .where('all_items_stock_restored', '==', false)
+            .where('status', 'in', ['Active', 'Approved']);
+        
+        const snapshot = await reservationsToRestoreQuery.get();
+        
+        if (snapshot.empty) {
+            console.log('No reservations found needing stock restoration at this time.');
+            return { processedCount: 0, message: 'No expired reservations found' };
+        }
+        
+        console.log(`Found ${snapshot.docs.length} reservation(s) to process for stock restoration.`);
+        
+        // Process each reservation
+        const batch = db.batch();
+        let successfullyProcessedCount = 0;
+        
+        snapshot.forEach(doc => {
+            const reservation = doc.data();
+            const reservationId = doc.id;
+            console.log(`Processing reservation ID: ${reservationId}`);
+            
+            // Ensure items array exists and is not empty
+            if (!reservation.items || reservation.items.length === 0) {
+                console.warn(`Reservation ID: ${reservationId} has no items. Skipping.`);
+                return; // Skip to next reservation document
+            }
+            
+            const stockRestoredUpdatePayload = {}; // To build updates for stock_restored_for_items
+            
+            // Process each item in the reservation
+            for (const item of reservation.items) {
+                if (!item.productId || typeof item.quantity !== 'number' || item.quantity <= 0) {
+                    console.error(`Reservation ID: ${reservationId}, Item has invalid data:`, item);
+                    continue; // Skip this malformed item
+                }
+                
+                // Queue stock increment for this product
+                const productRef = db.collection('products').doc(item.productId);
+                batch.update(productRef, {
+                    stock_count: firebase.firestore.FieldValue.increment(item.quantity)
+                });
+                
+                // Mark this item's stock as restored
+                stockRestoredUpdatePayload[`stock_restored_for_items.${item.productId}`] = true;
+                console.log(`  - Queued stock increment for product ${item.productId} by ${item.quantity}`);
+            }
+            
+            // Create activity entry for stock restoration
+            const activityEntry = createActivityEntry(
+                'stock_restored',
+                'system',
+                'تم استعادة المخزون تلقائياً بعد انتهاء فترة الحجز',
+                { 
+                    auto_restored: true,
+                    restoration_time: firebase.firestore.Timestamp.now(),
+                    items_count: reservation.items.length,
+                    triggered_by: silent ? 'user_interaction' : 'scheduled_check'
+                }
+            );
+            
+            // Update the reservation document
+            batch.update(doc.ref, {
+                ...stockRestoredUpdatePayload, // Spread the item-specific restoration flags
+                all_items_stock_restored: true,
+                status: 'Completed',
+                updated_at: firebase.firestore.FieldValue.serverTimestamp(),
+                activity_history: firebase.firestore.FieldValue.arrayUnion(activityEntry)
+            });
+            
+            successfullyProcessedCount++;
+            console.log(`  - Queued status update for reservation ID: ${reservationId} to 'Completed'.`);
+        });
+        
+        // Commit all changes in a single batch
+        if (successfullyProcessedCount > 0) {
+            await batch.commit();
+            console.log(`✅ Successfully restored stock for ${successfullyProcessedCount} expired reservation(s).`);
+            
+            // Show notification to admins only if not silent and user is admin
+            if (!silent && auth.currentUser) {
+                const userDoc = await db.collection('users').doc(auth.currentUser.uid).get();
+                if (userDoc.exists) {
+                    const userData = userDoc.data();
+                    if (userData.role === 'admin' || userData.role === 'superadmin') {
+                        showToast(`تم استعادة المخزون تلقائياً لـ ${successfullyProcessedCount} طلب منتهي الصلاحية`, 'info');
+                    }
+                }
+            }
+            
+            return { 
+                processedCount: successfullyProcessedCount, 
+                message: `Successfully restored stock for ${successfullyProcessedCount} expired reservations` 
+            };
+        } else {
+            console.log('No reservations were eligible for stock restoration after validation.');
+            return { processedCount: 0, message: 'No eligible reservations found after validation' };
+        }
+        
+    } catch (error) {
+        console.error('❌ Error in automatic stock restoration:', error);
+        // Don't show error toast to users as this runs in background
+        return { processedCount: 0, message: `Error: ${error.message}`, error: true };
+    }
+}
+
+/**
+ * Initialize automatic stock restoration
+ * Sets up the system to run when app loads and periodically
+ */
+function initializeAutomaticStockRestoration() {
+    console.log('Initializing automatic stock restoration system...');
+    
+    // Run immediately when app loads (after a short delay to ensure Firebase is ready)
+    setTimeout(() => {
+        automaticStockRestoration();
+    }, 5000); // 5 second delay
+    
+    // Run every 10 minutes (600,000 milliseconds)
+    // This is more frequent than the Cloud Function would be, ensuring better responsiveness
+    setInterval(automaticStockRestoration, 10 * 60 * 1000);
+    
+    console.log('✅ Automatic stock restoration system initialized - will run every 10 minutes');
+}
+
+// Initialize the automatic stock restoration when the page loads
+document.addEventListener('DOMContentLoaded', () => {
+    // Wait for Firebase to be ready before starting automatic stock restoration
+    setTimeout(() => {
+        initializeAutomaticStockRestoration();
+    }, 3000); // 3 second delay to ensure Firebase is initialized
+});
