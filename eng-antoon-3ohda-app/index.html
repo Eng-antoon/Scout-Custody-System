@@ -137,6 +137,33 @@
                             </div>
                         </div>
                     </div>
+                    
+                    <!-- Reservations Approval Table Section -->
+                    <div class="card mt-4">
+                        <div class="card-header">
+                            <h3>قبول و رفض الطلبات</h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table id="reservations-approval-table" class="table table-striped">
+                                    <thead>
+                                        <tr>
+                                            <th>البريد الالكتروني</th>
+                                            <th>المنتجات</th>
+                                            <th>الكمية الإجمالية</th>
+                                            <th>تاريخ بدء الحجز</th>
+                                            <th>تاريخ عودة العهدة</th>
+                                            <th>الحالة</th>
+                                            <th>الاختيارات</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="reservations-approval-table-body">
+                                        <!-- Dynamic content will be loaded here -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -223,6 +250,74 @@
                         </div>
                     </div>
                     
+                    <!-- Current Request/Cart Section -->
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h3>طلباتي الحالية</h3>
+                        </div>
+                        <div class="card-body">
+                            <!-- Cart Items Display -->
+                            <div id="current-request-items">
+                                <p class="text-muted text-center">لم تقم بإضافة أي منتجات للطلب بعد.</p>
+                            </div>
+                            
+                            <!-- Shared Reservation Details Form -->
+                            <form id="finalize-request-form" class="mt-4" style="display: none;">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="form-group">
+                                            <label for="request-recipient-name">اسم المستلم:</label>
+                                            <input type="text" class="form-control" id="request-recipient-name" placeholder="اسم المستلم" required>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="form-group">
+                                            <label for="request-recipient-mobile">رقم موبايل المستلم:</label>
+                                            <input type="tel" class="form-control" id="request-recipient-mobile" placeholder="رقم موبايل المستلم" required>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="row">
+                                    <div class="col-md-4">
+                                        <div class="form-group">
+                                            <label for="request-unit">الوحدة:</label>
+                                            <select class="form-control" id="request-unit" required>
+                                                <option value="">اختر الوحدة</option>
+                                                <option value="براعم اولاد">براعم اولاد</option>
+                                                <option value="براعم بنات">براعم بنات</option>
+                                                <option value="اشبال">اشبال</option>
+                                                <option value="زهرات">زهرات</option>
+                                                <option value="كشافة">كشافة</option>
+                                                <option value="مرشدات">مرشدات</option>
+                                                <option value="متقدم">متقدم</option>
+                                                <option value="جوالة">جوالة</option>
+                                                <option value="عمادة">عمادة</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="form-group">
+                                            <label for="request-start-time">بداية الحجز:</label>
+                                            <input type="datetime-local" class="form-control" id="request-start-time" required>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="form-group">
+                                            <label for="request-end-time">نهاية الحجز:</label>
+                                            <input type="datetime-local" class="form-control" id="request-end-time" required>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="alert alert-info">
+                                    <small><strong>تنبيه:</strong> مكان الاستلام و التسليم غرفة العهدة</small>
+                                </div>
+                                <button type="submit" class="btn btn-success btn-lg btn-block" id="complete-request-btn" disabled>
+                                    إتمام الطلب
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                    
                     <!-- Products Section -->
                     <div class="card">
                         <div class="card-header">
@@ -245,6 +340,33 @@
                                         <small id="pagination-info">جاري التحميل...</small>
                                     </div>
                                 </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- User Reservations Table Section -->
+                    <div class="card mt-4">
+                        <div class="card-header">
+                            <h3>طلبات الحجز السابقة</h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table id="reservations-table" class="table table-striped">
+                                    <thead>
+                                        <tr>
+                                            <th>البريد الإلكتروني</th>
+                                            <th>المنتجات</th>
+                                            <th>الكمية</th>
+                                            <th>حجز من</th>
+                                            <th>حجز الي</th>
+                                            <th>الحالة</th>
+                                            <th>الاختيارات</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="reservations-table-body">
+                                        <!-- Dynamic content will be loaded here -->
+                                    </tbody>
+                                </table>
                             </div>
                         </div>
                     </div>
@@ -300,6 +422,17 @@
                     </div>
                     <button type="submit" class="btn btn-primary">تحديث الدور</button>
                 </form>
+            </div>
+        </div>
+
+        <!-- Reservation Details Modal -->
+        <div id="reservation-details-modal" class="modal hidden">
+            <div class="modal-content" style="max-width: 800px;">
+                <span class="close">&times;</span>
+                <h3>تفاصيل الطلب</h3>
+                <div id="reservation-details-content">
+                    <!-- Dynamic content will be loaded here -->
+                </div>
             </div>
         </div>
 
