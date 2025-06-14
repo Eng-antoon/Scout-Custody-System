@@ -12,9 +12,19 @@ const firebaseConfig = {
 // Initialize Firebase
 firebase.initializeApp(firebaseConfig);
 
+// Initialize secondary app for user creation (to avoid logging out admin)
+const secondaryApp = firebase.initializeApp(firebaseConfig, "secondary");
+
 // Get Firebase services references
 const auth = firebase.auth();
 const db = firebase.firestore();
+const secondaryAuth = secondaryApp.auth();
+
+// Log successful initialization
+console.log('Firebase apps initialized:');
+console.log('- Main app:', firebase.app().name);
+console.log('- Secondary app:', secondaryApp.name);
+console.log('- Secondary auth available:', !!secondaryAuth);
 
 // Add connectivity check function
 async function checkFirestoreConnectivity() {
@@ -1811,29 +1821,51 @@ function loadRoles() {
  */
 async function createNewUser(email, password, role) {
     try {
-        // Store current admin info
+        // Verify current admin is still signed in
         const currentAdmin = auth.currentUser;
+        if (!currentAdmin) {
+            throw new Error('No admin user is currently signed in');
+        }
         
-        // Create the new user (this will temporarily sign out the admin)
-        const userCredential = await auth.createUserWithEmailAndPassword(email, password);
+        const adminEmail = currentAdmin.email;
+        console.log('Creating user with secondary app to preserve admin session...');
+        console.log('Current admin:', adminEmail);
+        
+        // Create the new user using secondary app (this won't affect the main auth state)
+        const userCredential = await secondaryAuth.createUserWithEmailAndPassword(email, password);
         const newUser = userCredential.user;
         
-        // Add user document to Firestore
+        console.log('New user created with UID:', newUser.uid);
+        
+        // Add user document to Firestore using the main app's db instance
         await db.collection('users').doc(newUser.uid).set({
             email: email,
             role: role,
             created_at: firebase.firestore.FieldValue.serverTimestamp()
         });
         
-        // Sign out the newly created user immediately
-        await auth.signOut();
+        console.log('User document created in Firestore');
         
-        showToast('تم إنشاء المستخدم بنجاح. سيتم إعادة تحميل الصفحة...', 'success');
+        // Sign out the newly created user from secondary app
+        await secondaryAuth.signOut();
         
-        // Reload the page to restore admin session
-        setTimeout(() => {
-            window.location.reload();
-        }, 2000);
+        console.log('New user signed out from secondary app');
+        
+        // Verify admin session is still active
+        const stillAdmin = auth.currentUser;
+        if (!stillAdmin || stillAdmin.email !== adminEmail) {
+            console.error('Admin session was lost during user creation!');
+            throw new Error('Admin session was compromised during user creation');
+        }
+        
+        console.log('✅ Admin session preserved successfully:', stillAdmin.email);
+        
+        showToast('تم إنشاء المستخدم بنجاح! يمكنك الآن إضافة مستخدمين آخرين.', 'success');
+        
+        // Refresh the users list if the modal is open
+        if (usersTableBody && !manageUsersModal.classList.contains('hidden')) {
+            loadUsers();
+        }
         
         return true;
     } catch (error) {
@@ -1937,6 +1969,14 @@ if (returnToAdminBtn) {
 if (createUserBtn) {
     createUserBtn.addEventListener('click', () => {
         showModal(createUserModal);
+        // Load roles when modal opens to ensure dropdown is populated
+        loadRoles();
+        // Focus on email field for better UX
+        setTimeout(() => {
+            if (newUserEmail) {
+                newUserEmail.focus();
+            }
+        }, 300);
     });
 }
 
@@ -1969,16 +2009,27 @@ if (createUserForm) {
             submitBtn.disabled = true;
             submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm ml-2"></span>جاري الإنشاء...';
             
+            console.log('Starting user creation process...');
             const success = await createNewUser(email, password, role);
             
             if (success) {
-                // Reset form and hide modal
+                // Reset form and keep modal open for creating more users
                 createUserForm.reset();
-                hideModal(createUserModal);
+                
+                // Show success message with option to close modal
+                showToast('تم إنشاء المستخدم بنجاح! يمكنك إضافة مستخدم آخر أو إغلاق النافذة.', 'success', 6000);
+                
+                // Focus back on email field for quick addition of another user
+                setTimeout(() => {
+                    if (newUserEmail) {
+                        newUserEmail.focus();
+                    }
+                }, 500);
             }
             
         } catch (error) {
             console.error('Error in create user form:', error);
+            showToast('حدث خطأ غير متوقع أثناء إنشاء المستخدم', 'error');
         } finally {
             // Reset button state
             submitBtn.disabled = false;
@@ -4122,6 +4173,109 @@ function showProfileEditMode() {
     if (profileViewSection) {
         profileViewSection.style.display = 'none';
     }
+    
+    // Set up image click event listener after the edit section is shown
+    setupProfileImageClickListener();
+}
+
+/**
+ * Set up profile image click listener
+ */
+function setupProfileImageClickListener() {
+    console.log('Setting up profile image click listener...');
+    
+    // Use a small delay to ensure DOM is ready
+    setTimeout(() => {
+        const editProfileImagePreview = document.getElementById('edit-profile-image-preview');
+        const editProfileImageInput = document.getElementById('edit-profile-image-input');
+        const imageContainer = document.querySelector('.profile-edit-image-container');
+        const imageOverlay = document.querySelector('.profile-edit-image-overlay');
+        
+        console.log('Profile image elements found:', {
+            preview: !!editProfileImagePreview,
+            input: !!editProfileImageInput,
+            container: !!imageContainer,
+            overlay: !!imageOverlay,
+            inputType: editProfileImageInput ? editProfileImageInput.type : 'N/A',
+            inputAccept: editProfileImageInput ? editProfileImageInput.accept : 'N/A',
+            inputStyle: editProfileImageInput ? editProfileImageInput.style.display : 'N/A',
+            previewVisible: editProfileImagePreview ? getComputedStyle(editProfileImagePreview).display !== 'none' : false
+        });
+        
+        if (editProfileImagePreview && editProfileImageInput) {
+            // Remove any existing click event listeners by cloning the elements
+            const newPreview = editProfileImagePreview.cloneNode(true);
+            editProfileImagePreview.parentNode.replaceChild(newPreview, editProfileImagePreview);
+            
+            // Flag to prevent double execution
+            let isProcessingClick = false;
+            
+            // Function to handle the file input click
+            const handleImageClick = (e, source) => {
+                e.preventDefault();
+                e.stopPropagation();
+                
+                if (isProcessingClick) {
+                    console.log('Click already being processed, ignoring...');
+                    return;
+                }
+                
+                isProcessingClick = true;
+                console.log(`Profile image clicked from ${source}! Triggering file input...`);
+                
+                try {
+                    editProfileImageInput.click();
+                    console.log('File input click triggered successfully');
+                } catch (error) {
+                    console.error('Error clicking file input:', error);
+                }
+                
+                // Reset flag after a short delay
+                setTimeout(() => {
+                    isProcessingClick = false;
+                }, 500);
+            };
+            
+            // Add click event listener to the image
+            newPreview.addEventListener('click', (e) => handleImageClick(e, 'image'));
+            
+            // Add click event listener to the overlay (this was missing!)
+            if (imageOverlay) {
+                imageOverlay.addEventListener('click', (e) => handleImageClick(e, 'overlay'));
+            }
+            
+            // Add click event listener to the container as backup
+            if (imageContainer) {
+                imageContainer.addEventListener('click', (e) => {
+                    // Only trigger if the click wasn't already handled by image or overlay
+                    if (e.target === imageContainer) {
+                        handleImageClick(e, 'container');
+                    }
+                });
+            }
+            
+            // Add visual feedback
+            newPreview.style.cursor = 'pointer';
+            newPreview.title = 'انقر لتغيير الصورة';
+            
+            if (imageOverlay) {
+                imageOverlay.style.cursor = 'pointer';
+                imageOverlay.title = 'انقر لتغيير الصورة';
+            }
+            
+            if (imageContainer) {
+                imageContainer.style.cursor = 'pointer';
+                imageContainer.title = 'انقر لتغيير الصورة';
+            }
+            
+            console.log('Profile image click listeners set up successfully for image, overlay, and container');
+        } else {
+            console.error('Profile image elements not found:', {
+                preview: !!editProfileImagePreview,
+                input: !!editProfileImageInput
+            });
+        }
+    }, 200);
 }
 
 /**
@@ -4154,20 +4308,34 @@ function populateProfileEditMode(profileData) {
 function handleProfileImageSelection(file) {
     if (!file) return;
 
+    console.log('Handling profile image selection:', file.name, file.size, file.type);
+
     // Validate image file
     if (!validateImageFile(file)) {
         return;
     }
 
     selectedProfileImage = file;
+    console.log('Profile image selected and validated successfully');
 
     // Show preview
     const reader = new FileReader();
     reader.onload = function(e) {
+        const editProfileImagePreview = document.getElementById('edit-profile-image-preview');
         if (editProfileImagePreview) {
             editProfileImagePreview.src = e.target.result;
+            console.log('Profile image preview updated');
+            showToast('تم اختيار الصورة بنجاح', 'success', 3000);
+        } else {
+            console.error('Profile image preview element not found');
         }
     };
+    
+    reader.onerror = function(e) {
+        console.error('Error reading file:', e);
+        showToast('خطأ في قراءة الصورة', 'error');
+    };
+    
     reader.readAsDataURL(file);
 }
 
@@ -4308,6 +4476,7 @@ if (editProfileImagePreview) {
 if (editProfileImageInput) {
     editProfileImageInput.addEventListener('change', (e) => {
         const file = e.target.files[0];
+        console.log('File selected:', file ? file.name : 'No file');
         if (file) {
             handleProfileImageSelection(file);
         }
@@ -4577,3 +4746,32 @@ function showCustomToast(message, type = 'info', icon = 'ℹ', title = 'إشعا
     
     return toastId;
 }
+
+/**
+ * Test function to manually trigger file input (for debugging)
+ */
+function testProfileImageInput() {
+    const editProfileImageInput = document.getElementById('edit-profile-image-input');
+    if (editProfileImageInput) {
+        console.log('Testing file input manually...');
+        console.log('Input details:', {
+            type: editProfileImageInput.type,
+            accept: editProfileImageInput.accept,
+            disabled: editProfileImageInput.disabled,
+            style: editProfileImageInput.style.display,
+            parentNode: editProfileImageInput.parentNode ? editProfileImageInput.parentNode.tagName : 'N/A'
+        });
+        
+        try {
+            editProfileImageInput.click();
+            console.log('Manual file input click successful');
+        } catch (error) {
+            console.error('Manual file input click failed:', error);
+        }
+    } else {
+        console.error('File input not found for manual test');
+    }
+}
+
+// Make test function available globally for debugging
+window.testProfileImageInput = testProfileImageInput;
