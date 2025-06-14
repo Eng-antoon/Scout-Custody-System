@@ -24,6 +24,16 @@ const refreshSnapshotBtn = document.getElementById('refresh-snapshot-btn');
 const loadingSpinner = document.getElementById('loading-spinner');
 const logoutDashboardBtn = document.getElementById('logout-dashboard-btn');
 
+// User Profile Elements
+const currentUserNameEl = document.getElementById('current-user-name');
+const currentUserRoleEl = document.getElementById('current-user-role');
+const dropdownUserNameEl = document.getElementById('dropdown-user-name');
+const dropdownUserEmailEl = document.getElementById('dropdown-user-email');
+const dropdownUserRoleEl = document.getElementById('dropdown-user-role');
+const headerLastUpdatedEl = document.getElementById('header-last-updated');
+const viewProfileBtn = document.getElementById('view-profile-btn');
+const systemSettingsBtn = document.getElementById('system-settings-btn');
+
 // Summary Card Elements
 const totalProductsValueEl = document.getElementById('total-products-value');
 const totalPhysicalStockValueEl = document.getElementById('total-physical-stock-value');
@@ -71,6 +81,7 @@ const itemsBreakdownTableEl = document.getElementById('items-breakdown-table');
 const dateBreakdownTableEl = document.getElementById('date-breakdown-table');
 
 let currentSnapshotData = null; // To store loaded snapshot
+let currentUser = null; // To store current user data
 
 // Pagination variables
 let currentPage = 1;
@@ -84,12 +95,139 @@ let statusChart = null;
 let topItemsChart = null;
 let topUsersChart = null;
 
+// --- User Profile Functions ---
+function updateUserProfile(user, userData) {
+    currentUser = { ...user, ...userData };
+    
+    // Update navbar user info
+    if (currentUserNameEl) {
+        currentUserNameEl.textContent = userData.displayName || userData.name || 'المدير';
+    }
+    
+    if (currentUserRoleEl) {
+        const roleText = getRoleInArabic(userData.role);
+        currentUserRoleEl.textContent = roleText;
+    }
+    
+    // Update dropdown user info
+    if (dropdownUserNameEl) {
+        dropdownUserNameEl.textContent = userData.displayName || userData.name || 'المدير';
+    }
+    
+    if (dropdownUserEmailEl) {
+        dropdownUserEmailEl.textContent = user.email || 'admin@example.com';
+    }
+    
+    if (dropdownUserRoleEl) {
+        const roleText = getRoleInArabic(userData.role);
+        dropdownUserRoleEl.textContent = roleText;
+        dropdownUserRoleEl.className = `badge ${getRoleBadgeClass(userData.role)}`;
+    }
+}
+
+function getRoleInArabic(role) {
+    const roles = {
+        'admin': 'مدير النظام',
+        'superadmin': 'مدير عام',
+        'user': 'مستخدم',
+        'moderator': 'مشرف'
+    };
+    return roles[role] || 'مستخدم';
+}
+
+function getRoleBadgeClass(role) {
+    const classes = {
+        'admin': 'badge-primary',
+        'superadmin': 'badge-danger',
+        'user': 'badge-secondary',
+        'moderator': 'badge-warning'
+    };
+    return classes[role] || 'badge-secondary';
+}
+
+function showUserProfileModal() {
+    if (!currentUser) return;
+    
+    const modalContent = `
+        <div class="user-profile-modal">
+            <div class="profile-header">
+                <div class="profile-avatar">
+                    <i class="fas fa-user-shield"></i>
+                </div>
+                <div class="profile-info">
+                    <h4>${currentUser.displayName || currentUser.name || 'المدير'}</h4>
+                    <p class="text-muted">${currentUser.email}</p>
+                    <span class="badge ${getRoleBadgeClass(currentUser.role)}">${getRoleInArabic(currentUser.role)}</span>
+                </div>
+            </div>
+            <div class="profile-details">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6>معلومات الحساب</h6>
+                        <ul class="list-unstyled">
+                            <li><strong>الاسم:</strong> ${currentUser.displayName || currentUser.name || 'غير محدد'}</li>
+                            <li><strong>البريد الإلكتروني:</strong> ${currentUser.email}</li>
+                            <li><strong>الدور:</strong> ${getRoleInArabic(currentUser.role)}</li>
+                            <li><strong>تاريخ الإنشاء:</strong> ${currentUser.metadata ? formatDate(new Date(currentUser.metadata.creationTime), false) : 'غير متاح'}</li>
+                        </ul>
+                    </div>
+                    <div class="col-md-6">
+                        <h6>إحصائيات الجلسة</h6>
+                        <ul class="list-unstyled">
+                            <li><strong>آخر تسجيل دخول:</strong> ${currentUser.metadata ? formatDate(new Date(currentUser.metadata.lastSignInTime), true) : 'غير متاح'}</li>
+                            <li><strong>حالة الحساب:</strong> <span class="badge badge-success">نشط</span></li>
+                            <li><strong>الصلاحيات:</strong> <span class="badge badge-info">كاملة</span></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Create and show modal
+    const modal = document.createElement('div');
+    modal.className = 'modal';
+    modal.innerHTML = `
+        <div class="modal-content" style="max-width: 600px;">
+            <span class="close">&times;</span>
+            <h3><i class="fas fa-user mr-2"></i>الملف الشخصي</h3>
+            ${modalContent}
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    modal.style.display = 'flex';
+    
+    // Close modal functionality
+    const closeBtn = modal.querySelector('.close');
+    closeBtn.onclick = () => {
+        document.body.removeChild(modal);
+    };
+    
+    modal.onclick = (e) => {
+        if (e.target === modal) {
+            document.body.removeChild(modal);
+        }
+    };
+}
+
+// --- Enhanced Loading Functions ---
+function updateHeaderTimestamp() {
+    if (headerLastUpdatedEl && currentSnapshotData && currentSnapshotData.last_updated) {
+        const lastUpdated = currentSnapshotData.last_updated.toDate();
+        headerLastUpdatedEl.textContent = formatDate(lastUpdated, true);
+    }
+}
+
 // --- Authentication & Authorization ---
 auth.onAuthStateChanged(async (user) => {
     if (user) {
         try {
             const userDoc = await db.collection('users').doc(user.uid).get();
             if (userDoc.exists && (userDoc.data().role === 'admin' || userDoc.data().role === 'superadmin')) {
+                // Update user profile
+                updateUserProfile(user, userDoc.data());
+                
                 authCheckSection.classList.add('hidden');
                 dashboardContent.classList.remove('hidden');
                 console.log('Admin user authenticated for dashboard.');
@@ -111,10 +249,28 @@ function redirectToLogin(message) {
     window.location.href = 'index.html'; // Redirect to main login page
 }
 
+// Event Listeners
 if (logoutDashboardBtn) {
-    logoutDashboardBtn.addEventListener('click', async () => {
-        await auth.signOut();
-        // Redirect handled by onAuthStateChanged
+    logoutDashboardBtn.addEventListener('click', async (e) => {
+        e.preventDefault();
+        if (confirm('هل أنت متأكد من تسجيل الخروج؟')) {
+            await auth.signOut();
+            // Redirect handled by onAuthStateChanged
+        }
+    });
+}
+
+if (viewProfileBtn) {
+    viewProfileBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        showUserProfileModal();
+    });
+}
+
+if (systemSettingsBtn) {
+    systemSettingsBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        alert('إعدادات النظام ستكون متاحة قريباً');
     });
 }
 
@@ -126,6 +282,7 @@ async function loadSnapshotAndDisplay() {
         if (snapshotDoc.exists) {
             currentSnapshotData = snapshotDoc.data();
             displaySnapshotData(currentSnapshotData);
+            updateHeaderTimestamp();
 
             // Check if auto-refresh is needed
             const lastUpdated = currentSnapshotData.last_updated.toDate();
@@ -463,15 +620,26 @@ function populateFilterDropdowns() {
         });
     }
     
-    // Populate unit filter (extract from email domain or user_unit field if available)
+    // Populate unit filter - extract from nested unit structure
     const uniqueUnits = [...new Set(allReservationsData.map(res => {
-        // Try to extract unit from user_unit field first, then from email domain
-        if (res.user_unit) return res.user_unit;
+        // Check for nested unit structure: res.unit.stringValue
+        if (res.unit && res.unit.stringValue) {
+            return res.unit.stringValue;
+        }
+        // Fallback to direct unit field
+        if (res.unit && typeof res.unit === 'string') {
+            return res.unit;
+        }
+        // Fallback to user_unit field
+        if (res.user_unit) {
+            return res.user_unit;
+        }
+        // Last fallback to email domain
         if (res.user_email && res.user_email.includes('@')) {
             return res.user_email.split('@')[1];
         }
         return 'غير محدد';
-    }))].sort();
+    }).filter(unit => unit && unit !== 'غير محدد'))].sort();
     
     if (unitFilterSelect) {
         unitFilterSelect.innerHTML = '<option value="">جميع الوحدات</option>';
@@ -481,6 +649,21 @@ function populateFilterDropdowns() {
             option.textContent = unit;
             unitFilterSelect.appendChild(option);
         });
+        
+        // Add "غير محدد" option if there are reservations without units
+        const hasUnspecifiedUnits = allReservationsData.some(res => {
+            const hasNestedUnit = res.unit && res.unit.stringValue;
+            const hasDirectUnit = res.unit && typeof res.unit === 'string';
+            const hasUserUnit = res.user_unit;
+            return !hasNestedUnit && !hasDirectUnit && !hasUserUnit;
+        });
+        
+        if (hasUnspecifiedUnits) {
+            const option = document.createElement('option');
+            option.value = 'غير محدد';
+            option.textContent = 'غير محدد';
+            unitFilterSelect.appendChild(option);
+        }
     }
 }
 
@@ -589,7 +772,26 @@ function applyFiltersAndDisplay() {
     const unitFilter = unitFilterSelect ? unitFilterSelect.value : '';
     if (unitFilter) {
         filtered = filtered.filter(res => {
-            const userUnit = res.user_unit || (res.user_email && res.user_email.includes('@') ? res.user_email.split('@')[1] : 'غير محدد');
+            // Extract unit using the same logic as populateFilterDropdowns
+            let userUnit = 'غير محدد';
+            
+            // Check for nested unit structure: res.unit.stringValue
+            if (res.unit && res.unit.stringValue) {
+                userUnit = res.unit.stringValue;
+            }
+            // Fallback to direct unit field
+            else if (res.unit && typeof res.unit === 'string') {
+                userUnit = res.unit;
+            }
+            // Fallback to user_unit field
+            else if (res.user_unit) {
+                userUnit = res.user_unit;
+            }
+            // Last fallback to email domain
+            else if (res.user_email && res.user_email.includes('@')) {
+                userUnit = res.user_email.split('@')[1];
+            }
+            
             return userUnit === unitFilter;
         });
     }
