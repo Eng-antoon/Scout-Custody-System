@@ -1,13 +1,21 @@
 /* Enhanced Mobile-First RTL Support */
 :root {
     --primary-color: #007bff;
+    --primary-color-rgb: 0, 123, 255;
     --secondary-color: #6c757d;
+    --secondary-color-rgb: 108, 117, 125;
     --success-color: #28a745;
+    --success-color-rgb: 40, 167, 69;
     --danger-color: #dc3545;
+    --danger-color-rgb: 220, 53, 69;
     --warning-color: #ffc107;
+    --warning-color-rgb: 255, 193, 7;
     --info-color: #17a2b8;
+    --info-color-rgb: 23, 162, 184;
     --light-color: #f8f9fa;
+    --light-color-rgb: 248, 249, 250;
     --dark-color: #343a40;
+    --dark-color-rgb: 52, 58, 64;
     --white: #ffffff;
     --border-radius: 12px;
     --box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
@@ -16,6 +24,13 @@
     --gradient-success: linear-gradient(135deg, #28a745 0%, #1e7e34 100%);
     --gradient-warning: linear-gradient(135deg, #ffc107 0%, #e0a800 100%);
     --gradient-danger: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+    
+    /* Additional color variations */
+    --primary-light: #e3f2fd;
+    --success-light: #d4edda;
+    --danger-light: #f8d7da;
+    --warning-light: #fff3cd;
+    --info-light: #d1ecf1;
 }
 
 body {
@@ -527,11 +542,13 @@ body {
 }
 
 .enhanced-modal-content.large-modal {
-    max-width: 900px;
+    max-width: 100%;
+    padding: 1rem;
 }
 
 .enhanced-modal-content.profile-modal {
-    max-width: 600px;
+    max-width: 100%;
+    padding: 1rem;
 }
 
 /* Modal headers - support both types */
@@ -734,6 +751,7 @@ body {
     padding: 0.75rem 1rem;
     transition: var(--transition);
     font-size: 1rem;
+    height: 3rem;
 }
 
 .form-control:focus {
@@ -1406,6 +1424,7 @@ body {
     .enhanced-modal-content, .modal-content {
         margin: 1rem;
         max-width: calc(100% - 2rem);
+        padding: 1rem;
     }
     
     .enhanced-modal-header {
@@ -1540,5 +1559,451 @@ body {
     to {
         opacity: 1;
         transform: translateY(0);
+    }
+}
+
+/* Reservation Details Modal Styles - Mobile First */
+.reservation-details-header {
+    margin-bottom: 1.5rem;
+}
+
+.reservation-details-header h4 {
+    color: var(--primary-color);
+    font-weight: 600;
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.reservation-details-header h4::before {
+    content: "\f0cb";
+    font-family: "Font Awesome 5 Free";
+    font-weight: 900;
+    color: var(--info-color);
+}
+
+.reservation-details-info {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+    background: var(--light-color);
+    padding: 1rem;
+    border-radius: 8px;
+    border-left: 4px solid var(--primary-color);
+}
+
+.reservation-info-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.reservation-info-item:last-child {
+    border-bottom: none;
+}
+
+.reservation-info-label {
+    font-weight: 600;
+    color: var(--dark-color);
+    font-size: 0.9rem;
+    opacity: 0.8;
+}
+
+.reservation-info-value {
+    font-weight: 500;
+    color: var(--primary-color);
+    font-size: 1rem;
+    word-break: break-all;
+}
+
+.reservation-info-value .badge {
+    font-size: 0.9rem;
+    padding: 0.5rem 0.75rem;
+}
+
+/* Reservation Items Section */
+.reservation-items-section {
+    margin-top: 1.5rem;
+}
+
+.reservation-items-section h4 {
+    color: var(--success-color);
+    font-weight: 600;
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.reservation-items-section h4::before {
+    content: "\f0c9";
+    font-family: "Font Awesome 5 Free";
+    font-weight: 900;
+    color: var(--success-color);
+}
+
+.reservation-items-table {
+    background: white;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    margin-bottom: 0;
+}
+
+.reservation-items-table thead {
+    background: linear-gradient(135deg, var(--primary-color), var(--info-color));
+}
+
+.reservation-items-table thead th {
+    color: white;
+    font-weight: 600;
+    border: none;
+    padding: 1rem 0.75rem;
+    font-size: 0.9rem;
+}
+
+.reservation-items-table tbody td {
+    padding: 0.75rem;
+    border-color: rgba(0, 0, 0, 0.1);
+    vertical-align: middle;
+}
+
+.reservation-items-table tbody tr:hover {
+    background-color: rgba(var(--primary-color-rgb), 0.05);
+}
+
+.reservation-total-row {
+    background: linear-gradient(135deg, rgba(var(--success-color-rgb), 0.1), rgba(var(--info-color-rgb), 0.1));
+    font-weight: 600;
+}
+
+.reservation-total-row td {
+    border-top: 2px solid var(--success-color);
+    color: var(--success-color);
+}
+
+/* Reservation Actions */
+.reservation-bulk-actions {
+    background: var(--light-color);
+    padding: 1rem;
+    border-radius: 8px;
+    border-left: 4px solid var(--warning-color);
+}
+
+.reservation-bulk-actions h5 {
+    color: var(--warning-color);
+    font-weight: 600;
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.reservation-bulk-actions h5::before {
+    content: "\f0ad";
+    font-family: "Font Awesome 5 Free";
+    font-weight: 900;
+}
+
+.reservation-bulk-actions .btn-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    width: 100%;
+}
+
+.reservation-bulk-actions .btn {
+    flex: 1;
+    padding: 0.75rem 1rem;
+    font-weight: 500;
+    border-radius: 6px;
+    transition: all 0.3s ease;
+}
+
+/* Activity History Section */
+.reservation-activity-section {
+    margin-top: 1.5rem;
+}
+
+.reservation-activity-section h4 {
+    color: var(--info-color);
+    font-weight: 600;
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.reservation-activity-section h4::before {
+    content: "\f1da";
+    font-family: "Font Awesome 5 Free";
+    font-weight: 900;
+}
+
+.activity-timeline {
+    position: relative;
+    padding-left: 2rem;
+}
+
+.activity-timeline::before {
+    content: '';
+    position: absolute;
+    left: 1rem;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: linear-gradient(to bottom, var(--primary-color), var(--info-color));
+}
+
+.activity-item {
+    position: relative;
+    margin-bottom: 1rem;
+    background: white;
+    border-radius: 8px;
+    padding: 1rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    border-left: 4px solid var(--info-color);
+}
+
+.activity-item::before {
+    content: '';
+    position: absolute;
+    left: -2.25rem;
+    top: 1rem;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--info-color);
+    border: 3px solid white;
+    box-shadow: 0 0 0 2px var(--info-color);
+}
+
+.activity-item.activity-approved {
+    border-left-color: var(--success-color);
+}
+
+.activity-item.activity-approved::before {
+    background: var(--success-color);
+    box-shadow: 0 0 0 2px var(--success-color);
+}
+
+.activity-item.activity-declined {
+    border-left-color: var(--danger-color);
+}
+
+.activity-item.activity-declined::before {
+    background: var(--danger-color);
+    box-shadow: 0 0 0 2px var(--danger-color);
+}
+
+.activity-item.activity-cancelled {
+    border-left-color: var(--secondary-color);
+}
+
+.activity-item.activity-cancelled::before {
+    background: var(--secondary-color);
+    box-shadow: 0 0 0 2px var(--secondary-color);
+}
+
+.activity-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 0.5rem;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.activity-action {
+    font-weight: 600;
+    color: var(--primary-color);
+    font-size: 1rem;
+}
+
+.activity-time {
+    font-size: 0.85rem;
+    color: var(--secondary-color);
+    font-weight: 500;
+}
+
+.activity-details {
+    color: var(--dark-color);
+    margin-bottom: 0.5rem;
+    line-height: 1.5;
+}
+
+.activity-performer {
+    font-size: 0.85rem;
+    color: var(--info-color);
+    font-weight: 500;
+}
+
+/* Mobile Responsive Enhancements */
+@media (max-width: 768px) {
+    .reservation-details-info {
+        grid-template-columns: 1fr;
+        padding: 0.75rem;
+    }
+    
+    .reservation-info-item {
+        padding: 0.75rem 0;
+    }
+    
+    .reservation-info-label {
+        font-size: 0.85rem;
+    }
+    
+    .reservation-info-value {
+        font-size: 0.95rem;
+    }
+    
+    .reservation-items-table {
+        font-size: 0.85rem;
+    }
+    
+    .reservation-items-table thead th {
+        padding: 0.75rem 0.5rem;
+        font-size: 0.8rem;
+    }
+    
+    .reservation-items-table tbody td {
+        padding: 0.5rem;
+    }
+    
+    .reservation-bulk-actions {
+        padding: 0.75rem;
+    }
+    
+    .reservation-bulk-actions .btn {
+        padding: 0.75rem;
+        font-size: 0.9rem;
+    }
+    
+    .activity-timeline {
+        padding-left: 1.5rem;
+    }
+    
+    .activity-timeline::before {
+        left: 0.75rem;
+    }
+    
+    .activity-item {
+        padding: 0.75rem;
+        margin-bottom: 0.75rem;
+    }
+    
+    .activity-item::before {
+        left: -1.75rem;
+        width: 10px;
+        height: 10px;
+    }
+    
+    .activity-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.25rem;
+    }
+    
+    .activity-action {
+        font-size: 0.9rem;
+    }
+    
+    .activity-time {
+        font-size: 0.8rem;
+    }
+    
+    .activity-details {
+        font-size: 0.9rem;
+    }
+    
+    .activity-performer {
+        font-size: 0.8rem;
+    }
+}
+
+@media (max-width: 576px) {
+    .reservation-details-header h4 {
+        font-size: 1.1rem;
+    }
+    
+    .reservation-items-section h4 {
+        font-size: 1.1rem;
+    }
+    
+    .reservation-activity-section h4 {
+        font-size: 1.1rem;
+    }
+    
+    .reservation-items-table {
+        font-size: 0.8rem;
+    }
+    
+    .reservation-items-table thead th {
+        padding: 0.5rem 0.25rem;
+        font-size: 0.75rem;
+    }
+    
+    .reservation-items-table tbody td {
+        padding: 0.5rem 0.25rem;
+    }
+    
+    .reservation-bulk-actions .btn {
+        padding: 0.75rem 0.5rem;
+        font-size: 0.85rem;
+    }
+    
+    /* Stack table on very small screens */
+    .reservation-items-table,
+    .reservation-items-table thead,
+    .reservation-items-table tbody,
+    .reservation-items-table th,
+    .reservation-items-table td,
+    .reservation-items-table tr {
+        display: block;
+    }
+    
+    .reservation-items-table thead tr {
+        position: absolute;
+        top: -9999px;
+        left: -9999px;
+    }
+    
+    .reservation-items-table tr {
+        border: 1px solid #ccc;
+        margin-bottom: 0.5rem;
+        padding: 0.5rem;
+        border-radius: 6px;
+        background: white;
+    }
+    
+    .reservation-items-table td {
+        border: none;
+        position: relative;
+        padding: 0.5rem 0.5rem 0.5rem 35%;
+        text-align: right;
+    }
+    
+    .reservation-items-table td:before {
+        content: attr(data-label) ": ";
+        position: absolute;
+        left: 6px;
+        width: 30%;
+        padding-right: 10px;
+        white-space: nowrap;
+        font-weight: 600;
+        color: var(--primary-color);
+    }
+    
+    .reservation-total-row {
+        background: var(--success-color);
+        color: white;
+        font-weight: 600;
+    }
+    
+    .reservation-total-row td:before {
+        color: white;
     }
 } 

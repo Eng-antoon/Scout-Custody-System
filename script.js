@@ -800,7 +800,7 @@ function createProductRow(productId, productData) {
         <td>${productData.name_en}</td>
         <td>${productData.name_ar}</td>
         <td>${productData.stock_count}</td>
-        <td>
+        <td style="display: flex; justify-content: space-between; align-items: center;">
             <button class="btn btn-warning btn-sm mr-2" onclick="openEditProductModal('${productId}', ${JSON.stringify(productData).replace(/"/g, '&quot;')})">
                 تعديل
             </button>
@@ -2803,16 +2803,18 @@ function viewReservationDetails(reservationId, reservationData) {
     `;
     
     // Add items table
+    const tableHeaders = ['اسم المنتج (العربي)', 'اسم المنتج (الإنجليزي)', 'الكمية'];
+    if (isAdmin && isActiveReservation) {
+        tableHeaders.push('الإجراءات');
+    }
+    
     contentHTML += `
         <div class="reservation-items-section">
             <h4>المنتجات المطلوبة</h4>
             <table class="table reservation-items-table">
                 <thead>
                     <tr>
-                        <th>اسم المنتج (العربي)</th>
-                        <th>اسم المنتج (الإنجليزي)</th>
-                        <th>الكمية</th>
-                        ${isAdmin && isActiveReservation ? '<th>الإجراءات</th>' : ''}
+                        ${tableHeaders.map(header => `<th>${header}</th>`).join('')}
                     </tr>
                 </thead>
                 <tbody>
@@ -2824,7 +2826,7 @@ function viewReservationDetails(reservationId, reservationData) {
         // New multi-item format
         reservationData.items.forEach((item, index) => {
             const itemActions = isAdmin && isActiveReservation ? `
-                <td>
+                <td data-label="الإجراءات">
                     <button class="btn btn-sm btn-danger" 
                             onclick="rejectSingleItem('${reservationId}', ${index}, '${item.productNameAr || item.productNameEn}')">
                         رفض هذا المنتج
@@ -2834,9 +2836,9 @@ function viewReservationDetails(reservationId, reservationData) {
             
             contentHTML += `
                 <tr>
-                    <td>${item.productNameAr || 'غير محدد'}</td>
-                    <td>${item.productNameEn || 'غير محدد'}</td>
-                    <td>${item.quantity || 0}</td>
+                    <td data-label="اسم المنتج (العربي)">${item.productNameAr || 'غير محدد'}</td>
+                    <td data-label="اسم المنتج (الإنجليزي)">${item.productNameEn || 'غير محدد'}</td>
+                    <td data-label="الكمية">${item.quantity || 0}</td>
                     ${itemActions}
                 </tr>
             `;
@@ -2845,7 +2847,7 @@ function viewReservationDetails(reservationId, reservationData) {
     } else {
         // Old single-item format (backward compatibility)
         const itemActions = isAdmin && isActiveReservation ? `
-            <td>
+            <td data-label="الإجراءات">
                 <button class="btn btn-sm btn-danger" 
                         onclick="declineReservation('${reservationId}', ${JSON.stringify(reservationData).replace(/"/g, '&quot;')})">
                     رفض الطلب
@@ -2855,9 +2857,9 @@ function viewReservationDetails(reservationId, reservationData) {
         
         contentHTML += `
             <tr>
-                <td>${reservationData.product_name_ar || 'غير محدد'}</td>
-                <td>${reservationData.product_name_en || 'غير محدد'}</td>
-                <td>${reservationData.quantity || 0}</td>
+                <td data-label="اسم المنتج (العربي)">${reservationData.product_name_ar || 'غير محدد'}</td>
+                <td data-label="اسم المنتج (الإنجليزي)">${reservationData.product_name_en || 'غير محدد'}</td>
+                <td data-label="الكمية">${reservationData.quantity || 0}</td>
                 ${itemActions}
             </tr>
         `;
@@ -2865,11 +2867,12 @@ function viewReservationDetails(reservationId, reservationData) {
     }
     
     // Add total row
+    const totalColspan = isAdmin && isActiveReservation ? 3 : 2;
     contentHTML += `
                     <tr class="reservation-total-row">
-                        <td colspan="${isAdmin && isActiveReservation ? '3' : '2'}"><strong>إجمالي الكمية</strong></td>
-                        <td><strong>${totalQuantity}</strong></td>
-                        ${isAdmin && isActiveReservation ? '<td></td>' : ''}
+                        <td colspan="${totalColspan}" data-label="إجمالي"><strong>إجمالي الكمية</strong></td>
+                        <td data-label="الكمية الإجمالية"><strong>${totalQuantity}</strong></td>
+                        ${isAdmin && isActiveReservation ? '<td data-label=""></td>' : ''}
                     </tr>
                 </tbody>
             </table>
@@ -2884,10 +2887,12 @@ function viewReservationDetails(reservationId, reservationData) {
                 <div class="btn-group">
                     <button class="btn btn-success" 
                             onclick="approveReservation('${reservationId}')">
+                        <i class="fas fa-check"></i>
                         قبول الطلب كاملاً
                     </button>
                     <button class="btn btn-danger" 
                             onclick="declineReservation('${reservationId}', ${JSON.stringify(reservationData).replace(/"/g, '&quot;')})">
+                        <i class="fas fa-times"></i>
                         رفض الطلب كاملاً
                     </button>
                 </div>
@@ -2898,8 +2903,11 @@ function viewReservationDetails(reservationId, reservationData) {
     // Add creation date if available
     if (reservationData.created_at) {
         contentHTML += `
-            <div class="mt-3">
-                <small class="text-muted">تاريخ إنشاء الطلب: ${formatDate(reservationData.created_at)}</small>
+            <div class="mt-3 text-center">
+                <small class="text-muted">
+                    <i class="fas fa-calendar-plus"></i>
+                    تاريخ إنشاء الطلب: ${formatDate(reservationData.created_at)}
+                </small>
             </div>
         `;
     }
@@ -2931,16 +2939,19 @@ function viewReservationDetails(reservationId, reservationData) {
             
             contentHTML += `
                 <div class="activity-item ${activityClass}">
-                    <div class="activity-icon">
-                        <i class="${activityIcon}"></i>
-                    </div>
                     <div class="activity-content">
                         <div class="activity-header">
-                            <span class="activity-action">${getActivityDisplayText(activity.action)}</span>
+                            <span class="activity-action">
+                                <i class="${activityIcon}"></i>
+                                ${getActivityDisplayText(activity.action)}
+                            </span>
                             <span class="activity-time">${activityTime}</span>
                         </div>
                         <div class="activity-details">${activity.details || 'لا توجد تفاصيل إضافية'}</div>
-                        <div class="activity-performer">بواسطة: ${activity.performed_by || 'غير محدد'}</div>
+                        <div class="activity-performer">
+                            <i class="fas fa-user"></i>
+                            بواسطة: ${activity.performed_by || 'غير محدد'}
+                        </div>
                     </div>
                 </div>
             `;
@@ -2957,7 +2968,7 @@ function viewReservationDetails(reservationId, reservationData) {
     
     // Show the modal
     reservationDetailsModal.classList.remove('hidden');
-    reservationDetailsModal.style.display = 'block';
+    // reservationDetailsModal.style.display = 'block';
 }
 
 /**
