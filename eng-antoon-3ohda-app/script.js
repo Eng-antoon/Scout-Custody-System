@@ -143,6 +143,26 @@ const completeRequestBtn = document.getElementById('complete-request-btn');
 const reservationDetailsModal = document.getElementById('reservation-details-modal');
 const reservationDetailsContent = document.getElementById('reservation-details-content');
 
+// Profile Modal DOM Elements
+const viewProfileBtn = document.getElementById('view-profile-btn');
+const viewProfileBtnUser = document.getElementById('view-profile-btn-user');
+const profileModal = document.getElementById('profile-modal');
+const profileViewSection = document.getElementById('profile-view-section');
+const profileEditSection = document.getElementById('profile-edit-section');
+const profileModalImage = document.getElementById('profile-modal-image');
+const profileModalName = document.getElementById('profile-modal-name');
+const profileModalEmail = document.getElementById('profile-modal-email');
+const profileModalPhone = document.getElementById('profile-modal-phone');
+const profileModalUnit = document.getElementById('profile-modal-unit');
+const editProfileBtn = document.getElementById('edit-profile-btn');
+const profileEditForm = document.getElementById('profile-edit-form');
+const editProfileImagePreview = document.getElementById('edit-profile-image-preview');
+const editProfileImageInput = document.getElementById('edit-profile-image-input');
+const editProfileName = document.getElementById('edit-profile-name');
+const editProfilePhone = document.getElementById('edit-profile-phone');
+const editProfileUnit = document.getElementById('edit-profile-unit');
+const cancelEditProfileBtn = document.getElementById('cancel-edit-profile-btn');
+
 // Global variable to store current product ID being edited
 let currentEditingProductId = null;
 
@@ -155,6 +175,10 @@ const PRODUCTS_PER_PAGE = 9;
 
 // Shopping Cart Global Variables
 let currentCart = []; // Array of objects: { productId, productName, quantity, stockAvailable }
+
+// User Profile Global Variables
+let currentUserProfileData = null; // Store current user's profile data
+let selectedProfileImage = null; // Store selected image file for profile update
 
 // Availability Check Global Variables
 let selectedAvailabilityStart = null;
@@ -2526,6 +2550,10 @@ function renderCurrentCart() {
         if (completeRequestBtn) {
             completeRequestBtn.disabled = true;
         }
+        
+        // Clear form fields when cart is empty (Iteration 4.5)
+        clearRequestForm();
+        
         return;
     }
     
@@ -2537,6 +2565,9 @@ function renderCurrentCart() {
         completeRequestBtn.disabled = false;
     }
     
+    // Pre-fill form fields with user profile data (Iteration 4.5)
+    preFillRequestForm();
+
     // Create cart summary
     const cartSummary = document.createElement('div');
     cartSummary.className = 'cart-summary';
@@ -3804,3 +3835,370 @@ function hideProductReservationsModal() {
         reservationsModal.style.display = 'none';
     }
 }
+
+// Profile Management Functions
+
+/**
+ * Ensure user profile data is loaded
+ */
+async function ensureUserProfileDataLoaded() {
+    if (!auth.currentUser) {
+        console.error('No authenticated user');
+        return null;
+    }
+
+    if (currentUserProfileData) {
+        return currentUserProfileData;
+    }
+
+    try {
+        const userDoc = await db.collection('users').doc(auth.currentUser.uid).get();
+        if (userDoc.exists) {
+            currentUserProfileData = userDoc.data();
+            return currentUserProfileData;
+        } else {
+            // Create a basic profile if it doesn't exist
+            currentUserProfileData = {
+                displayName: auth.currentUser.displayName || '',
+                email: auth.currentUser.email,
+                phoneNumber: '',
+                unit: '',
+                photoURL: auth.currentUser.photoURL || '',
+                createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            };
+            
+            // Save the basic profile
+            await db.collection('users').doc(auth.currentUser.uid).set(currentUserProfileData, { merge: true });
+            return currentUserProfileData;
+        }
+    } catch (error) {
+        console.error('Error loading user profile:', error);
+        showToast('خطأ في تحميل بيانات الملف الشخصي', 'error');
+        return null;
+    }
+}
+
+/**
+ * Open profile modal and load user data
+ */
+async function openProfileModal() {
+    if (!profileModal) return;
+
+    try {
+        // Load user profile data
+        const profileData = await ensureUserProfileDataLoaded();
+        if (!profileData) return;
+
+        // Populate view mode
+        populateProfileViewMode(profileData);
+        
+        // Show modal in view mode
+        showProfileViewMode();
+        showModal(profileModal);
+        
+    } catch (error) {
+        console.error('Error opening profile modal:', error);
+        showToast('خطأ في فتح الملف الشخصي', 'error');
+    }
+}
+
+/**
+ * Populate profile view mode with user data
+ */
+function populateProfileViewMode(profileData) {
+    if (profileModalImage) {
+        profileModalImage.src = profileData.photoURL || '';
+    }
+    
+    if (profileModalName) {
+        profileModalName.textContent = profileData.displayName || '-';
+    }
+    
+    if (profileModalEmail) {
+        profileModalEmail.textContent = profileData.email || auth.currentUser?.email || '-';
+    }
+    
+    if (profileModalPhone) {
+        profileModalPhone.textContent = profileData.phoneNumber || '-';
+    }
+    
+    if (profileModalUnit) {
+        profileModalUnit.textContent = profileData.unit || '-';
+    }
+}
+
+/**
+ * Show profile view mode and hide edit mode
+ */
+function showProfileViewMode() {
+    if (profileViewSection) {
+        profileViewSection.style.display = 'block';
+    }
+    if (profileEditSection) {
+        profileEditSection.style.display = 'none';
+    }
+}
+
+/**
+ * Show profile edit mode and hide view mode
+ */
+function showProfileEditMode() {
+    if (!currentUserProfileData) return;
+
+    // Populate edit form
+    populateProfileEditMode(currentUserProfileData);
+    
+    // Show edit mode
+    if (profileEditSection) {
+        profileEditSection.style.display = 'block';
+    }
+    if (profileViewSection) {
+        profileViewSection.style.display = 'none';
+    }
+}
+
+/**
+ * Populate profile edit mode with user data
+ */
+function populateProfileEditMode(profileData) {
+    if (editProfileImagePreview) {
+        editProfileImagePreview.src = profileData.photoURL || '';
+    }
+    
+    if (editProfileName) {
+        editProfileName.value = profileData.displayName || '';
+    }
+    
+    if (editProfilePhone) {
+        editProfilePhone.value = profileData.phoneNumber || '';
+    }
+    
+    if (editProfileUnit) {
+        editProfileUnit.value = profileData.unit || '';
+    }
+    
+    // Reset selected image
+    selectedProfileImage = null;
+}
+
+/**
+ * Handle profile image selection
+ */
+function handleProfileImageSelection(file) {
+    if (!file) return;
+
+    // Validate image file
+    if (!validateImageFile(file)) {
+        return;
+    }
+
+    selectedProfileImage = file;
+
+    // Show preview
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        if (editProfileImagePreview) {
+            editProfileImagePreview.src = e.target.result;
+        }
+    };
+    reader.readAsDataURL(file);
+}
+
+/**
+ * Save profile changes
+ */
+async function saveProfileChanges(formData) {
+    if (!auth.currentUser) {
+        showToast('خطأ: لم يتم العثور على المستخدم', 'error');
+        return false;
+    }
+
+    try {
+        const updateData = {
+            displayName: formData.get('displayName').trim(),
+            phoneNumber: formData.get('phoneNumber').trim(),
+            unit: formData.get('unit'),
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        };
+
+        // Upload new image if selected
+        if (selectedProfileImage) {
+            try {
+                const imageUrl = await uploadImageToCloudinary(selectedProfileImage);
+                updateData.photoURL = imageUrl;
+            } catch (imageError) {
+                console.error('Error uploading profile image:', imageError);
+                showToast('خطأ في رفع الصورة، سيتم حفظ باقي البيانات', 'warning');
+            }
+        }
+
+        // Update user document in Firestore
+        await db.collection('users').doc(auth.currentUser.uid).update(updateData);
+
+        // Update cached profile data
+        currentUserProfileData = { ...currentUserProfileData, ...updateData };
+
+        // Update view mode with new data
+        populateProfileViewMode(currentUserProfileData);
+
+        // Switch back to view mode
+        showProfileViewMode();
+
+        showToast('تم حفظ التغييرات بنجاح', 'success');
+        return true;
+
+    } catch (error) {
+        console.error('Error saving profile:', error);
+        showToast('خطأ في حفظ التغييرات: ' + error.message, 'error');
+        return false;
+    }
+}
+
+/**
+ * Hide profile modal
+ */
+function hideProfileModal() {
+    hideModal(profileModal);
+    showProfileViewMode(); // Reset to view mode
+    selectedProfileImage = null; // Reset selected image
+}
+
+/**
+ * Pre-fill request form with user profile data (Iteration 4.5)
+ */
+async function preFillRequestForm() {
+    try {
+        // Ensure user profile data is loaded
+        const profileData = await ensureUserProfileDataLoaded();
+        if (!profileData) return;
+
+        // Pre-fill form fields
+        if (requestRecipientName && profileData.displayName) {
+            requestRecipientName.value = profileData.displayName;
+        }
+        
+        if (requestRecipientMobile && profileData.phoneNumber) {
+            requestRecipientMobile.value = profileData.phoneNumber;
+        }
+        
+        if (requestUnit && profileData.unit) {
+            requestUnit.value = profileData.unit;
+        }
+    } catch (error) {
+        console.error('Error pre-filling request form:', error);
+        // Don't show error toast as this is not critical
+    }
+}
+
+/**
+ * Clear request form fields
+ */
+function clearRequestForm() {
+    if (requestRecipientName) {
+        requestRecipientName.value = '';
+    }
+    if (requestRecipientMobile) {
+        requestRecipientMobile.value = '';
+    }
+    if (requestUnit) {
+        requestUnit.value = '';
+    }
+}
+
+// Profile Modal Event Listeners
+if (viewProfileBtn) {
+    viewProfileBtn.addEventListener('click', () => {
+        openProfileModal();
+    });
+}
+
+if (viewProfileBtnUser) {
+    viewProfileBtnUser.addEventListener('click', () => {
+        openProfileModal();
+    });
+}
+
+if (editProfileBtn) {
+    editProfileBtn.addEventListener('click', () => {
+        showProfileEditMode();
+    });
+}
+
+if (cancelEditProfileBtn) {
+    cancelEditProfileBtn.addEventListener('click', () => {
+        showProfileViewMode();
+    });
+}
+
+if (editProfileImagePreview) {
+    editProfileImagePreview.addEventListener('click', () => {
+        if (editProfileImageInput) {
+            editProfileImageInput.click();
+        }
+    });
+}
+
+if (editProfileImageInput) {
+    editProfileImageInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            handleProfileImageSelection(file);
+        }
+    });
+}
+
+if (profileEditForm) {
+    profileEditForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const formData = new FormData(e.target);
+        formData.set('displayName', editProfileName.value);
+        formData.set('phoneNumber', editProfilePhone.value);
+        formData.set('unit', editProfileUnit.value);
+        
+        // Get submit button and store original text
+        const submitBtn = profileEditForm.querySelector('button[type="submit"]');
+        const originalText = submitBtn.textContent;
+        
+        try {
+            // Show loading state
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm ml-2"></span>جاري الحفظ...';
+            
+            await saveProfileChanges(formData);
+            
+        } catch (error) {
+            console.error('Error in profile edit form:', error);
+        } finally {
+            // Reset button state
+            submitBtn.disabled = false;
+            submitBtn.textContent = originalText;
+        }
+    });
+}
+
+if (profileModal) {
+    const closeBtn = profileModal.querySelector('.close');
+    if (closeBtn) {
+        closeBtn.addEventListener('click', () => {
+            hideProfileModal();
+        });
+    }
+    
+    // Close modal when clicking outside of it
+    profileModal.addEventListener('click', (e) => {
+        if (e.target === profileModal) {
+            hideProfileModal();
+        }
+    });
+}
+
+// Add keyboard event listener for Escape key
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+        if (profileModal && !profileModal.classList.contains('hidden')) {
+            hideProfileModal();
+        }
+    }
+});

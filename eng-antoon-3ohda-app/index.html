@@ -52,7 +52,10 @@
                 <div class="col-12">
                     <div class="d-flex justify-content-between align-items-center mb-4">
                         <h2>وحدة التحكم</h2>
-                        <button id="logout-admin" class="btn btn-outline-danger">تسجيل خروج</button>
+                        <div>
+                            <button id="view-profile-btn" class="btn btn-outline-info ml-2">ملفي الشخصي</button>
+                            <button id="logout-admin" class="btn btn-outline-danger">تسجيل خروج</button>
+                        </div>
                     </div>
                     
                     <!-- Admin Management Buttons -->
@@ -231,6 +234,7 @@
                     <div class="d-flex justify-content-between align-items-center mb-4">
                         <h2>نظام الطلبات</h2>
                         <div>
+                            <button id="view-profile-btn-user" class="btn btn-outline-info ml-2">ملفي الشخصي</button>
                             <button id="return-to-admin-btn" class="btn btn-outline-primary ml-2 hidden">العودة للوحة التحكم</button>
                             <button id="logout-user" class="btn btn-outline-danger">تسجيل الخروج</button>
                         </div>
@@ -466,6 +470,95 @@
                 <h3>تفاصيل الطلب</h3>
                 <div id="reservation-details-content">
                     <!-- Dynamic content will be loaded here -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Profile Modal -->
+        <div id="profile-modal" class="modal hidden">
+            <div class="modal-content" style="max-width: 600px;">
+                <span class="close">&times;</span>
+                <h3>ملفي الشخصي</h3>
+                
+                <!-- Profile View Section (Default) -->
+                <div id="profile-view-section">
+                    <div class="text-center mb-4">
+                        <img id="profile-modal-image" src="" alt="صورة الملف الشخصي" 
+                             style="width: 150px; height: 150px; border-radius: 50%; object-fit: cover; border: 3px solid #ddd;"
+                             onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTUwIiBoZWlnaHQ9IjE1MCIgdmlld0JveD0iMCAwIDE1MCAxNTAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIxNTAiIGhlaWdodD0iMTUwIiBmaWxsPSIjRjNGNEY2Ii8+CjxwYXRoIGQ9Ik03NSA3NUMzNy41IDc1IDM3LjUgMzcuNSA3NSAzNy41Uzc1IDM3LjUgNzUgNzVaIiBmaWxsPSIjOUNBM0FGIi8+CjxwYXRoIGQ9Ik03NSAxMTIuNUM1MC42MjUgMTEyLjUgMzEuMjUgOTMuMTI1IDMxLjI1IDc1UzUwLjYyNSAzNy41IDc1IDM3LjVTMTE4Ljc1IDU2Ljg3NSAxMTguNzUgNzVTOTkuMzc1IDExMi41IDc1IDExMi41WiIgZmlsbD0iIzlDQTNBRiIvPgo8L3N2Zz4K'">
+                    </div>
+                    
+                    <div class="profile-info">
+                        <div class="form-group">
+                            <label><strong>الاسم:</strong></label>
+                            <p id="profile-modal-name" class="form-control-plaintext">-</p>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label><strong>البريد الإلكتروني:</strong></label>
+                            <p id="profile-modal-email" class="form-control-plaintext">-</p>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label><strong>رقم الهاتف:</strong></label>
+                            <p id="profile-modal-phone" class="form-control-plaintext">-</p>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label><strong>الوحدة:</strong></label>
+                            <p id="profile-modal-unit" class="form-control-plaintext">-</p>
+                        </div>
+                    </div>
+                    
+                    <div class="text-center mt-4">
+                        <button id="edit-profile-btn" class="btn btn-primary">تعديل الملف الشخصي</button>
+                    </div>
+                </div>
+                
+                <!-- Profile Edit Section (Hidden initially) -->
+                <div id="profile-edit-section" style="display: none;">
+                    <form id="profile-edit-form">
+                        <div class="text-center mb-4">
+                            <img id="edit-profile-image-preview" src="" alt="معاينة الصورة" 
+                                 style="width: 120px; height: 120px; border-radius: 50%; object-fit: cover; border: 3px solid #ddd; cursor: pointer;"
+                                 onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTIwIiBoZWlnaHQ9IjEyMCIgdmlld0JveD0iMCAwIDEyMCAxMjAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIxMjAiIGhlaWdodD0iMTIwIiBmaWxsPSIjRjNGNEY2Ii8+CjxwYXRoIGQ9Ik02MCA2MEM0MCA2MCA0MCA0MCA2MCA0MFM2MCA0MCA2MCA2MFoiIGZpbGw9IiM5Q0EzQUYiLz4KPHBhdGggZD0iTTYwIDkwQzQwLjUgOTAgMjUgNzQuNSAyNSA2MFM0MC41IDMwIDYwIDMwUzk1IDQ1LjUgOTUgNjBTNzkuNSA5MCA2MCA5MFoiIGZpbGw9IiM5Q0EzQUYiLz4KPC9zdmc+Cg=='">
+                            <input type="file" id="edit-profile-image-input" accept="image/*" style="display: none;">
+                            <div class="mt-2">
+                                <small class="text-muted">إضغط على الصورة لتغييرها</small>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="edit-profile-name">الاسم:</label>
+                            <input type="text" class="form-control" id="edit-profile-name" required>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="edit-profile-phone">رقم الهاتف:</label>
+                            <input type="tel" class="form-control" id="edit-profile-phone">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="edit-profile-unit">الوحدة:</label>
+                            <select class="form-control" id="edit-profile-unit">
+                                <option value="">اختر الوحدة...</option>
+                                <option value="براعم اولاد">براعم اولاد</option>
+                                <option value="براعم بنات">براعم بنات</option>
+                                <option value="اشبال">اشبال</option>
+                                <option value="زهرات">زهرات</option>
+                                <option value="كشافة">كشافة</option>
+                                <option value="مرشدات">مرشدات</option>
+                                <option value="متقدم">متقدم</option>
+                                <option value="جوالة">جوالة</option>
+                                <option value="عمادة">عمادة</option>
+                            </select>
+                        </div>
+                        
+                        <div class="text-center mt-4">
+                            <button type="submit" class="btn btn-success ml-2">حفظ التغييرات</button>
+                            <button type="button" id="cancel-edit-profile-btn" class="btn btn-secondary">إلغاء</button>
+                        </div>
+                    </form>
                 </div>
             </div>
         </div>
