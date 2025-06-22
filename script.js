@@ -38,7 +38,7 @@ async function sendReservationEmail(reservationId, reservationData) {
         const formatDateForEmail = (date) => {
             if (!date) return 'غير محدد';
             try {
-                return date.toLocaleString('ar-EG', {
+                return date.toLocaleString('en-US', {
                     year: 'numeric',
                     month: 'long',
                     day: 'numeric',
@@ -56,7 +56,7 @@ async function sendReservationEmail(reservationId, reservationData) {
         
         // Email template parameters
         const templateParams = {
-            to_email: 'antoonkamel20000@outlook.com',
+            to_email: 'massarakashafa@gmail.com',
             reservation_id: reservationId,
             user_email: reservationData.userEmail || 'غير محدد',
             recipient_name: reservationData.recipientName || 'غير محدد',
@@ -2535,7 +2535,7 @@ function createUserReservationRow(reservationId, reservationData) {
                 return 'غير محدد';
             }
             
-            return date.toLocaleString('ar-EG', {
+            return date.toLocaleString('en-US', {
                 year: 'numeric',
                 month: '2-digit',
                 day: '2-digit',
@@ -2724,7 +2724,7 @@ function createAdminReservationRow(reservationId, reservationData) {
                 return 'غير محدد';
             }
             
-            return date.toLocaleString('ar-EG', {
+            return date.toLocaleString('en-US', {
                 year: 'numeric',
                 month: '2-digit',
                 day: '2-digit',
@@ -3055,7 +3055,7 @@ function viewReservationDetails(reservationId, reservationData) {
                 return 'غير محدد';
             }
             
-            return date.toLocaleString('ar-EG', {
+            return date.toLocaleString('en-US', {
                 year: 'numeric',
                 month: '2-digit',
                 day: '2-digit',
@@ -3922,23 +3922,56 @@ if (checkAvailabilityBtn) {
  * Initialize availability interface
  */
 function initializeAvailabilityInterface() {
-    // Set minimum date to current date/time
+    // Configuration: Minimum hours required between current time and booking start time
+    // This can be easily modified to change the minimum booking window
+    const MINIMUM_BOOKING_HOURS = 60;
+    
+    // Set minimum date to current date/time + minimum hours
     const now = new Date();
-    const currentDateTime = now.toISOString().slice(0, 16); // Format for datetime-local input
+    const minimumBookingTime = new Date(now.getTime() + (MINIMUM_BOOKING_HOURS * 60 * 60 * 1000));
+    const minimumDateTime = minimumBookingTime.toISOString().slice(0, 16); // Format for datetime-local input
     
     if (availabilityStartTime) {
-        availabilityStartTime.min = currentDateTime;
+        availabilityStartTime.min = minimumDateTime;
         availabilityStartTime.value = '';
+        
+        // Add custom validation message
+        availabilityStartTime.addEventListener('invalid', (e) => {
+            e.target.setCustomValidity(`يجب أن يكون وقت بداية الحجز على الأقل ${MINIMUM_BOOKING_HOURS} ساعة من الآن`);
+        });
+        
+        availabilityStartTime.addEventListener('input', (e) => {
+            e.target.setCustomValidity(''); // Clear custom message when user starts typing
+        });
     }
     
     if (availabilityEndTime) {
-        availabilityEndTime.min = currentDateTime;
+        availabilityEndTime.min = minimumDateTime;
         availabilityEndTime.value = '';
+        
+        // Add custom validation message
+        availabilityEndTime.addEventListener('invalid', (e) => {
+            e.target.setCustomValidity(`يجب أن يكون وقت نهاية الحجز على الأقل ${MINIMUM_BOOKING_HOURS} ساعة من الآن`);
+        });
+        
+        availabilityEndTime.addEventListener('input', (e) => {
+            e.target.setCustomValidity(''); // Clear custom message when user starts typing
+        });
     }
     
     // Add event listeners for date validation
     if (availabilityStartTime) {
         availabilityStartTime.addEventListener('change', () => {
+            // Validate minimum booking time
+            const selectedStartTime = new Date(availabilityStartTime.value);
+            if (selectedStartTime < minimumBookingTime) {
+                availabilityStartTime.setCustomValidity(`يجب أن يكون وقت بداية الحجز على الأقل ${MINIMUM_BOOKING_HOURS} ساعة من الآن`);
+                showToast(`يجب أن يكون وقت بداية الحجز على الأقل ${MINIMUM_BOOKING_HOURS} ساعة من الوقت الحالي`, 'error');
+                return;
+            } else {
+                availabilityStartTime.setCustomValidity('');
+            }
+            
             if (availabilityEndTime && availabilityStartTime.value) {
                 // Set minimum end time to be after start time
                 availabilityEndTime.min = availabilityStartTime.value;
@@ -3956,15 +3989,26 @@ function initializeAvailabilityInterface() {
     
     if (availabilityEndTime) {
         availabilityEndTime.addEventListener('change', () => {
+            // Validate minimum booking time
+            const selectedEndTime = new Date(availabilityEndTime.value);
+            if (selectedEndTime < minimumBookingTime) {
+                availabilityEndTime.setCustomValidity(`يجب أن يكون وقت نهاية الحجز على الأقل ${MINIMUM_BOOKING_HOURS} ساعة من الآن`);
+                showToast(`يجب أن يكون وقت نهاية الحجز على الأقل ${MINIMUM_BOOKING_HOURS} ساعة من الوقت الحالي`, 'error');
+                return;
+            } else {
+                availabilityEndTime.setCustomValidity('');
+            }
+            
             // Reset availability check when dates change
             resetAvailabilityCheck();
         });
     }
     
-    // Show initial status
+    // Show initial status with updated message
     if (availabilityStatus) {
         availabilityStatus.innerHTML = `
-            <small><strong>تنبيه:</strong> يرجى اختيار فترة الحجز لعرض المخزون المتاح خلال هذه الفترة</small>
+            <small><strong>تنبيه:</strong> يرجى اختيار فترة الحجز لعرض المخزون المتاح خلال هذه الفترة. 
+            <br><strong>ملاحظة:</strong> يجب أن يكون الحجز بعد ${MINIMUM_BOOKING_HOURS} ساعة على الأقل من الوقت الحالي.</small>
         `;
         availabilityStatus.style.display = 'block';
         availabilityStatus.className = 'alert alert-info';
@@ -4038,7 +4082,7 @@ function showProductReservationsModal(productId, productName, reservationDetails
     const formatDate = (date) => {
         if (!date) return 'غير محدد';
         try {
-            return date.toLocaleString('ar-EG', {
+            return date.toLocaleString('en-US', {
                 year: 'numeric',
                 month: '2-digit',
                 day: '2-digit',

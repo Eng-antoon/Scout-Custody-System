@@ -1275,7 +1275,7 @@ function formatDate(date, includeTime = true) {
         options.hour = '2-digit';
         options.minute = '2-digit';
     }
-    return new Date(date).toLocaleDateString('ar-EG', options);
+    return new Date(date).toLocaleDateString('en-US', options);
 }
 
 function calculateUpcomingReservations(allReservations, daysAhead) {

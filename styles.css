@@ -42,6 +42,9 @@ body {
     line-height: 1.6;
 }
 
+input {
+    direction: ltr;
+}
 /* Mobile Navigation */
 .mobile-nav {
     background: var(--gradient-primary);
