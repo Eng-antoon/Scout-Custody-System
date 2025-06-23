@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>تقارير النظام - عهدة الكشافة</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <link rel="stylesheet" href="dashboard_report.css">
+    <!-- Add Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+    <!-- Add Google Fonts for better typography -->
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <!-- Chart.js for data visualization -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- jsPDF for PDF generation -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <!-- jsPDF AutoTable for table generation -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+    <!-- html2canvas for capturing charts -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+</head>
+<body>
+    <!-- Enhanced Navigation Bar -->
+    <nav class="navbar navbar-expand-lg navbar-dark sticky-top enhanced-navbar">
+        <div class="container-fluid">
+            <a class="navbar-brand d-flex align-items-center" href="#">
+                <i class="fas fa-chart-line mr-2"></i>
+                <span>تقارير النظام</span>
+            </a>
+            
+            <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav mr-auto">
+                    <li class="nav-item">
+                        <a class="nav-link nav-link-enhanced" href="admin_dashboard.html">
+                            <i class="fas fa-tachometer-alt mr-1"></i>
+                            العودة للوحة التحكم
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link nav-link-enhanced" href="index.html">
+                            <i class="fas fa-home mr-1"></i>
+                            العودة للنظام الرئيسي
+                        </a>
+                    </li>
+                </ul>
+                
+                <!-- User Profile Section -->
+                <ul class="navbar-nav ml-auto">
+                    <li class="nav-item dropdown user-profile-dropdown">
+                        <a class="nav-link dropdown-toggle user-profile-link" href="#" id="userProfileDropdown" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                            <div class="user-avatar">
+                                <i class="fas fa-user-shield"></i>
+                            </div>
+                            <div class="user-info d-none d-md-inline-block">
+                                <span class="user-name" id="current-user-name">المدير</span>
+                                <small class="user-role" id="current-user-role">مدير النظام</small>
+                            </div>
+                        </a>
+                        <div class="dropdown-menu dropdown-menu-right user-dropdown-menu" aria-labelledby="userProfileDropdown">
+                            <div class="dropdown-header">
+                                <div class="user-profile-header">
+                                    <div class="user-avatar-large">
+                                        <i class="fas fa-user-shield"></i>
+                                    </div>
+                                    <div class="user-details">
+                                        <h6 id="dropdown-user-name">المدير</h6>
+                                        <small id="dropdown-user-email" class="text-muted">admin@example.com</small>
+                                        <span class="badge badge-success" id="dropdown-user-role">مدير النظام</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="dropdown-divider"></div>
+                            <a class="dropdown-item text-danger" href="#" id="logout-dashboard-btn">
+                                <i class="fas fa-sign-out-alt mr-2"></i>
+                                تسجيل الخروج
+                            </a>
+                        </div>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Welcome Banner -->
+    <div class="welcome-banner">
+        <div class="container-fluid">
+            <div class="row align-items-center">
+                <div class="col-md-8">
+                    <div class="welcome-content">
+                        <h2 class="welcome-title">
+                            <i class="fas fa-file-alt mr-2"></i>
+                            إنشاء تقارير النشاط
+                        </h2>
+                        <p class="welcome-subtitle">
+                            قم بإنشاء تقارير مفصلة عن أنشطة النظام والحجوزات خلال فترة زمنية محددة
+                        </p>
+                    </div>
+                </div>
+                <div class="col-md-4 text-center">
+                    <div class="system-status">
+                        <div class="status-indicator">
+                            <i class="fas fa-circle text-success"></i>
+                            <span>جاهز لإنشاء التقارير</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container-fluid dashboard-container">
+        <div id="auth-check-section" class="auth-loading">
+            <div class="loading-content">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="sr-only">جاري التحميل...</span>
+                </div>
+                <p class="mt-3">يتم التحقق من صلاحيات الدخول...</p>
+            </div>
+        </div>
+
+        <div id="report-content" class="hidden">
+            <!-- Date Range Selection Section -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h4><i class="fas fa-calendar-alt mr-2"></i>اختيار فترة التقرير</h4>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label for="start-date">تاريخ البداية:</label>
+                                        <input type="date" id="start-date" class="form-control">
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label for="end-date">تاريخ النهاية:</label>
+                                        <input type="date" id="end-date" class="form-control">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label>أو اختر فترة جاهزة:</label>
+                            <div class="quick-date-buttons mt-2">
+                                <button class="btn btn-outline-primary btn-sm mr-2 mb-2" id="last-7-days-btn">آخر 7 أيام</button>
+                                <button class="btn btn-outline-primary btn-sm mr-2 mb-2" id="last-30-days-btn">آخر 30 يوم</button>
+                                <button class="btn btn-outline-primary btn-sm mr-2 mb-2" id="this-month-btn">هذا الشهر</button>
+                                <button class="btn btn-outline-primary btn-sm mr-2 mb-2" id="last-month-btn">الشهر الماضي</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row mt-3">
+                        <div class="col-12">
+                            <button class="btn btn-primary btn-lg mr-3" id="generate-preview-btn">
+                                <i class="fas fa-eye mr-2"></i>
+                                معاينة التقرير
+                            </button>
+                            <button class="btn btn-success btn-lg" id="download-pdf-btn" disabled>
+                                <i class="fas fa-download mr-2"></i>
+                                تحميل التقرير (PDF)
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Loading Spinner -->
+            <div id="loading-spinner" class="loading-overlay hidden">
+                <div class="loading-content">
+                    <div class="spinner-border text-primary" style="width: 3rem; height: 3rem;" role="status">
+                        <span class="sr-only">جاري التحميل...</span>
+                    </div>
+                    <p class="mt-3">جاري جلب البيانات وإنشاء التقرير...</p>
+                </div>
+            </div>
+
+            <!-- Report Preview Area -->
+            <div id="report-preview-area" class="hidden">
+                <!-- Summary Statistics -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h4><i class="fas fa-chart-pie mr-2"></i>ملخص إحصائي</h4>
+                        <small class="text-muted">فترة التقرير: <span id="report-period"></span></small>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-3">
+                                <div class="stat-card">
+                                    <div class="stat-icon bg-primary">
+                                        <i class="fas fa-clipboard-list"></i>
+                                    </div>
+                                    <div class="stat-content">
+                                        <h3 id="total-reservations-stat">0</h3>
+                                        <p>إجمالي الحجوزات</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="stat-card">
+                                    <div class="stat-icon bg-info">
+                                        <i class="fas fa-boxes"></i>
+                                    </div>
+                                    <div class="stat-content">
+                                        <h3 id="unique-items-stat">0</h3>
+                                        <p>أصناف مختلفة</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="stat-card">
+                                    <div class="stat-icon bg-warning">
+                                        <i class="fas fa-cubes"></i>
+                                    </div>
+                                    <div class="stat-content">
+                                        <h3 id="total-quantity-stat">0</h3>
+                                        <p>إجمالي الكمية</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="stat-card">
+                                    <div class="stat-icon bg-success">
+                                        <i class="fas fa-users"></i>
+                                    </div>
+                                    <div class="stat-content">
+                                        <h3 id="unique-users-stat">0</h3>
+                                        <p>مستخدمين نشطين</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Charts Section -->
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5><i class="fas fa-chart-pie mr-2"></i>توزيع حالات الحجوزات</h5>
+                            </div>
+                            <div class="card-body">
+                                <canvas id="status-chart" width="400" height="300"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5><i class="fas fa-chart-bar mr-2"></i>أكثر الأصناف حجزاً</h5>
+                            </div>
+                            <div class="card-body">
+                                <canvas id="top-items-chart" width="400" height="300"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tables Section -->
+                <div class="row">
+                    <div class="col-12">
+                        <div class="card mb-4">
+                            <div class="card-header">
+                                <h5><i class="fas fa-list mr-2"></i>تفاصيل الحجوزات</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="table-responsive">
+                                    <table class="table table-striped table-hover" id="reservations-table">
+                                        <thead>
+                                            <tr>
+                                                <th>رقم الحجز</th>
+                                                <th>المستخدم</th>
+                                                <th>اسم المستلم</th>
+                                                <th>الوحدة</th>
+                                                <th>تاريخ البداية</th>
+                                                <th>تاريخ النهاية</th>
+                                                <th>الحالة</th>
+                                                <th>الأصناف</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="reservations-table-body">
+                                            <!-- Data will be populated by JS -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="card mb-4">
+                            <div class="card-header">
+                                <h5><i class="fas fa-boxes mr-2"></i>تفصيل الأصناف</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="table-responsive">
+                                    <table class="table table-striped" id="items-breakdown-table">
+                                        <thead>
+                                            <tr>
+                                                <th>اسم الصنف (عربي)</th>
+                                                <th>اسم الصنف (انجليزي)</th>
+                                                <th>إجمالي الكمية</th>
+                                                <th>عدد مرات الحجز</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="items-breakdown-body">
+                                            <!-- Data will be populated by JS -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card mb-4">
+                            <div class="card-header">
+                                <h5><i class="fas fa-user-friends mr-2"></i>نشاط المستخدمين</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="table-responsive">
+                                    <table class="table table-striped" id="users-activity-table">
+                                        <thead>
+                                            <tr>
+                                                <th>البريد الإلكتروني</th>
+                                                <th>الاسم الكامل</th>
+                                                <th>المجموعة الكشفية</th>
+                                                <th>عدد الحجوزات</th>
+                                                <th>إجمالي الكمية</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="users-activity-body">
+                                            <!-- Data will be populated by JS -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- No Data Message -->
+            <div id="no-data-message" class="text-center hidden">
+                <div class="card">
+                    <div class="card-body">
+                        <i class="fas fa-info-circle fa-3x text-muted mb-3"></i>
+                        <h4>لا توجد بيانات للفترة المحددة</h4>
+                        <p class="text-muted">اختر فترة زمنية أخرى أو تأكد من وجود حجوزات في هذه الفترة.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap and jQuery -->
+    <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.1/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+
+    <!-- Firebase SDKs - v8 for compatibility -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+
+    <!-- Custom JavaScript -->
+    <script src="dashboard_report.js"></script>
+</body>
+</html> 
