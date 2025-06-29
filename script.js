@@ -2372,7 +2372,7 @@ function createUserRow(userId, userData) {
     if (userData.created_at) {
         try {
             const date = userData.created_at.toDate();
-            dateText = date.toLocaleDateString('ar-EG');
+            dateText = date.toLocaleDateString('en-US');
         } catch (e) {
             dateText = 'غير محدد';
         }
@@ -3890,7 +3890,7 @@ if (checkAvailabilityBtn) {
             // Update status message
             if (availabilityStatus) {
                 availabilityStatus.innerHTML = `
-                    <small><strong>✅ تم فحص التوافر:</strong> من ${startDate.toLocaleString('ar-EG')} إلى ${endDate.toLocaleString('ar-EG')}</small>
+                    <small><strong>✅ تم فحص التوافر:</strong> من ${startDate.toLocaleString('en-US')} إلى ${endDate.toLocaleString('en-US')}</small>
                 `;
                 availabilityStatus.style.display = 'block';
                 availabilityStatus.className = 'alert alert-success';
