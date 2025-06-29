@@ -1369,6 +1369,12 @@ function showReservationDetails(reservation) {
         (reservation.reservation_end.toDate ? reservation.reservation_end.toDate() : new Date(reservation.reservation_end)) : null;
     const createdDate = reservation.created_at ? 
         (reservation.created_at.toDate ? reservation.created_at.toDate() : new Date(reservation.created_at)) : null;
+    const recipientName = reservation.recipient_name ? 
+        (reservation.recipient_name) : null;
+    const unit = reservation.unit ? 
+        (reservation.unit) : null;
+    const recipientMobile = reservation.recipient_mobile ? 
+        (reservation.recipient_mobile) : null;
     
     let statusClass = '';
     switch(reservation.status) {
@@ -1420,8 +1426,33 @@ function showReservationDetails(reservation) {
                     ${createdDate ? formatDate(createdDate) : 'غير متوفر'}</p>
                 </div>
                 <div class="col-md-6">
+                    <p><strong><i class="fas fa-clock"></i> تاريخ البداية:</strong><br>
+                    ${startDate ? formatDate(startDate) : 'غير متوفر'}</p>
+                </div>
+                <div class="col-md-6">
+                    <p><strong><i class="fas fa-clock"></i> تاريخ النهاية:</strong><br>
+                    ${endDate ? formatDate(endDate) : 'غير متوفر'}</p>
+                </div>
+                <div class="col-md-6">
                     <p><strong><i class="fas fa-boxes"></i> إجمالي العهد:</strong><br>
                     ${totalItems} قطعة</p>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-6">
+                    <p><strong><i class="fas fa-clock"></i> اسم المستخدم:</strong><br>
+                    ${reservation.user_email}</p>
+                </div>                <div class="col-md-6">
+                    <p><strong><i class="fas fa-boxes"></i> اسم المستلم:</strong><br>
+                    ${recipientName}</p>
+                </div>
+                <div class="col-md-6">
+                    <p><strong><i class="fas fa-boxes"></i> الوحدة:</strong><br>
+                    ${unit}</p>
+                </div>
+                <div class="col-md-6">
+                    <p style="direction: ltr;"><strong><i class="fas fa-phone"></i> رقم الهاتف:</strong><br>
+                    <a href="tel:${recipientMobile}" class="phone-link">${recipientMobile}</a></p>
                 </div>
             </div>
             
