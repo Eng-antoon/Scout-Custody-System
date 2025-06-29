@@ -72,7 +72,7 @@ function initializeDashboard(auth, db) {
 
     // Action Buttons
     const generatePreviewBtn = document.getElementById('generate-preview-btn');
-    const downloadPdfBtn = document.getElementById('download-pdf-btn');
+    const downloadImgBtn = document.getElementById('download-img-btn');
 
     // Report Elements
     const reportPeriodEl = document.getElementById('report-period');
@@ -249,7 +249,7 @@ function initializeDashboard(auth, db) {
             // Process and display the report
             reportData = processReportData(data, startDate, endDate);
             displayReportPreview(reportData);
-            downloadPdfBtn.disabled = false;
+            downloadImgBtn.disabled = false;
             
         } catch (error) {
             console.error('Error generating report:', error);
@@ -484,7 +484,7 @@ function initializeDashboard(auth, db) {
             topItemsChart.destroy();
         }
         
-        // Status Chart
+        // Status Chart with more vibrant colors
         const statusCtx = document.getElementById('status-chart').getContext('2d');
         const statusLabels = Object.keys(stats.statusBreakdown).map(status => getStatusInArabic(status));
         const statusData = Object.values(stats.statusBreakdown);
@@ -496,8 +496,16 @@ function initializeDashboard(auth, db) {
                 datasets: [{
                     data: statusData,
                     backgroundColor: [
-                        '#74b9ff', '#00b894', '#2d3436', '#e17055', '#fdcb6e'
-                    ]
+                        '#007bff', // Blue
+                        '#28a745', // Green
+                        '#dc3545', // Red
+                        '#ffc107', // Yellow
+                        '#6c757d', // Gray
+                        '#17a2b8', // Teal
+                        '#fd7e14'  // Orange
+                    ],
+                    borderColor: '#ffffff',
+                    borderWidth: 2
                 }]
             },
             options: {
@@ -505,14 +513,30 @@ function initializeDashboard(auth, db) {
                 maintainAspectRatio: false,
                 plugins: {
                     legend: {
+                        position: 'bottom',
                         rtl: true,
-                        textDirection: 'rtl'
+                        textDirection: 'rtl',
+                        labels: {
+                            font: {
+                                size: 12,
+                                weight: 'bold'
+                            },
+                            color: '#2c3e50',
+                            padding: 15
+                        }
+                    },
+                    tooltip: {
+                        backgroundColor: 'rgba(0,0,0,0.8)',
+                        titleColor: '#ffffff',
+                        bodyColor: '#ffffff',
+                        borderColor: '#ffffff',
+                        borderWidth: 1
                     }
                 }
             }
         });
         
-        // Top Items Chart
+        // Top Items Chart with enhanced styling
         const itemsCtx = document.getElementById('top-items-chart').getContext('2d');
         const topItems = Object.entries(stats.itemsBreakdown)
             .sort(([,a], [,b]) => b.totalQuantity - a.totalQuantity)
@@ -521,6 +545,11 @@ function initializeDashboard(auth, db) {
         const itemLabels = topItems.map(([, item]) => item.nameAr);
         const itemData = topItems.map(([, item]) => item.totalQuantity);
         
+        // Generate different colors for each bar
+        const barColors = [
+            '#007bff', '#28a745', '#dc3545', '#ffc107', '#17a2b8'
+        ];
+        
         topItemsChart = new Chart(itemsCtx, {
             type: 'bar',
             data: {
@@ -528,7 +557,9 @@ function initializeDashboard(auth, db) {
                 datasets: [{
                     label: 'الكمية',
                     data: itemData,
-                    backgroundColor: '#74b9ff'
+                    backgroundColor: barColors.slice(0, itemData.length),
+                    borderColor: barColors.slice(0, itemData.length),
+                    borderWidth: 1
                 }]
             },
             options: {
@@ -537,11 +568,41 @@ function initializeDashboard(auth, db) {
                 plugins: {
                     legend: {
                         display: false
+                    },
+                    tooltip: {
+                        backgroundColor: 'rgba(0,0,0,0.8)',
+                        titleColor: '#ffffff',
+                        bodyColor: '#ffffff',
+                        borderColor: '#ffffff',
+                        borderWidth: 1
                     }
                 },
                 scales: {
                     y: {
-                        beginAtZero: true
+                        beginAtZero: true,
+                        ticks: {
+                            color: '#2c3e50',
+                            font: {
+                                weight: 'bold'
+                            }
+                        },
+                        grid: {
+                            color: '#e0e6ed',
+                            borderColor: '#2c3e50'
+                        }
+                    },
+                    x: {
+                        ticks: {
+                            color: '#2c3e50',
+                            font: {
+                                weight: 'bold'
+                            },
+                            maxRotation: 45
+                        },
+                        grid: {
+                            color: '#e0e6ed',
+                            borderColor: '#2c3e50'
+                        }
                     }
                 }
             }
@@ -551,7 +612,7 @@ function initializeDashboard(auth, db) {
     function showNoDataMessage() {
         reportPreviewArea.classList.add('hidden');
         noDataMessage.classList.remove('hidden');
-        downloadPdfBtn.disabled = true;
+        downloadImgBtn.disabled = true;
     }
 
     function showLoading(isLoading, message = "جاري التحميل...") {
@@ -564,126 +625,149 @@ function initializeDashboard(auth, db) {
     }
 
     // PDF Generation
-    downloadPdfBtn.addEventListener('click', generatePDFReport);
+    downloadImgBtn.addEventListener('click', generateImgReport);
 
-    async function generatePDFReport() {
+    async function generateImgReport() {
         if (!reportData) {
             alert('يرجى إنشاء معاينة التقرير أولاً');
             return;
         }
         
-        showLoading(true, 'جاري إنشاء ملف PDF...');
+        showLoading(true, 'جاري إنشاء ملف صورة...');
         
         try {
-            const { jsPDF } = window.jspdf;
-            const doc = new jsPDF('p', 'mm', 'a4');
+            // Get the report element
+            const reportElement = document.getElementById('report-preview-area');
             
-            // Set font for Arabic support (if available)
-            doc.setFont('arial', 'normal');
+            // Wait a bit for charts to fully render
+            await new Promise(resolve => setTimeout(resolve, 1000));
             
-            let yPosition = 20;
+            // Configure html2canvas with optimal settings for color clarity
+            const canvas = await html2canvas(reportElement, {
+                scale: 3, // Higher scale for better resolution
+                useCORS: true,
+                allowTaint: false,
+                backgroundColor: '#ffffff',
+                logging: false,
+                width: reportElement.scrollWidth,
+                height: reportElement.scrollHeight,
+                foreignObjectRendering: false,
+                ignoreElements: (element) => {
+                    // Ignore any overlay elements or loading spinners
+                    return element.classList?.contains('loading-overlay') || 
+                           element.classList?.contains('hidden');
+                },
+                onclone: (clonedDoc) => {
+                    // Enhance styles in the cloned document for better rendering
+                    const style = clonedDoc.createElement('style');
+                    style.textContent = `
+                        * {
+                            -webkit-font-smoothing: antialiased;
+                            -moz-osx-font-smoothing: grayscale;
+                        }
+                        .card {
+                            border: 1px solid #e0e6ed !important;
+                            box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
+                        }
+                        .table th {
+                            background-color: #f8f9fa !important;
+                            color: #2c3e50 !important;
+                            border-bottom: 2px solid #dee2e6 !important;
+                        }
+                        .table td {
+                            color: #2c3e50 !important;
+                            border-bottom: 1px solid #dee2e6 !important;
+                        }
+                        .stat-card {
+                            border: 1px solid #e0e6ed !important;
+                            box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
+                        }
+                        .stat-icon.bg-primary { 
+                            background: #007bff !important; 
+                            color: white !important;
+                        }
+                        .stat-icon.bg-info { 
+                            background: #17a2b8 !important; 
+                            color: white !important;
+                        }
+                        .stat-icon.bg-warning { 
+                            background: #ffc107 !important; 
+                            color: #212529 !important;
+                        }
+                        .stat-icon.bg-success { 
+                            background: #28a745 !important; 
+                            color: white !important;
+                        }
+                        .status-badge.active { 
+                            background: #007bff !important; 
+                            color: white !important; 
+                        }
+                        .status-badge.approved { 
+                            background: #28a745 !important; 
+                            color: white !important; 
+                        }
+                        .status-badge.completed { 
+                            background: #6c757d !important; 
+                            color: white !important; 
+                        }
+                        .status-badge.declined { 
+                            background: #dc3545 !important; 
+                            color: white !important; 
+                        }
+                        .status-badge.pending { 
+                            background: #ffc107 !important; 
+                            color: #212529 !important; 
+                        }
+                        .badge-primary { 
+                            background: #007bff !important; 
+                            color: white !important;
+                        }
+                        .badge-success { 
+                            background: #28a745 !important; 
+                            color: white !important;
+                        }
+                        .badge-warning { 
+                            background: #ffc107 !important; 
+                            color: #212529 !important;
+                        }
+                        .badge-danger { 
+                            background: #dc3545 !important; 
+                            color: white !important;
+                        }
+                        .badge-info { 
+                            background: #17a2b8 !important; 
+                            color: white !important;
+                        }
+                        canvas {
+                            image-rendering: -webkit-optimize-contrast !important;
+                            image-rendering: crisp-edges !important;
+                        }
+                    `;
+                    clonedDoc.head.appendChild(style);
+                    
+                    // Ensure all chart canvases are properly styled
+                    const canvases = clonedDoc.querySelectorAll('canvas');
+                    canvases.forEach(canvas => {
+                        canvas.style.backgroundColor = '#ffffff';
+                        canvas.style.border = '1px solid #e0e6ed';
+                    });
+                }
+            });
             
-            // Title
-            doc.setFontSize(18);
-            doc.text('Scout Custody System - Activity Report', 105, yPosition, { align: 'center' });
-            yPosition += 15;
+            // Convert canvas to high-quality image data URL
+            const imgData = canvas.toDataURL('image/jpeg', 1.0);
             
-            doc.setFontSize(14);
-            doc.text(`Report Period: ${reportData.period}`, 105, yPosition, { align: 'center' });
-            yPosition += 10;
-            
-            doc.setFontSize(10);
-            doc.text(`Generated on: ${formatDateArabic(new Date())}`, 105, yPosition, { align: 'center' });
-            yPosition += 20;
-            
-            // Summary Statistics
-            doc.setFontSize(14);
-            doc.text('Summary Statistics', 20, yPosition);
-            yPosition += 10;
-            
-            doc.setFontSize(10);
-            doc.text(`Total Reservations: ${reportData.stats.totalReservations}`, 20, yPosition);
-            yPosition += 6;
-            doc.text(`Unique Items: ${reportData.stats.uniqueItemsCount}`, 20, yPosition);
-            yPosition += 6;
-            doc.text(`Total Quantity: ${reportData.stats.totalQuantity}`, 20, yPosition);
-            yPosition += 6;
-            doc.text(`Active Users: ${reportData.stats.uniqueUsersCount}`, 20, yPosition);
-            yPosition += 15;
-            
-            // Reservations Table
-            if (reportData.reservations.length > 0) {
-                doc.autoTable({
-                    head: [['ID', 'User', 'Recipient', 'Unit', 'Start Date', 'End Date', 'Status']],
-                    body: reportData.reservations.map(reservation => [
-                        reservation.id.substring(0, 8),
-                        reservation.user_email || 'N/A',
-                        reservation.recipient_name || 'N/A',
-                        reservation.unit || 'N/A',
-                        formatDateArabic(reservation.reservation_start?.toDate() || new Date()),
-                        formatDateArabic(reservation.reservation_end?.toDate() || new Date()),
-                        getStatusInArabic(reservation.status)
-                    ]),
-                    startY: yPosition,
-                    theme: 'grid',
-                    headStyles: { fillColor: [116, 185, 255] },
-                    margin: { top: yPosition },
-                    styles: { fontSize: 8 }
-                });
-                
-                yPosition = doc.lastAutoTable.finalY + 15;
-            }
-            
-            // Items Breakdown
-            if (Object.keys(reportData.stats.itemsBreakdown).length > 0) {
-                const sortedItems = Object.entries(reportData.stats.itemsBreakdown)
-                    .sort(([,a], [,b]) => b.totalQuantity - a.totalQuantity);
-                
-                doc.autoTable({
-                    head: [['Item Name (AR)', 'Item Name (EN)', 'Total Quantity', 'Reservation Count']],
-                    body: sortedItems.map(([, item]) => [
-                        item.nameAr,
-                        item.nameEn,
-                        item.totalQuantity.toString(),
-                        item.reservationCount.toString()
-                    ]),
-                    startY: yPosition,
-                    theme: 'grid',
-                    headStyles: { fillColor: [0, 206, 201] },
-                    styles: { fontSize: 8 }
-                });
-                
-                yPosition = doc.lastAutoTable.finalY + 15;
-            }
-            
-            // Users Activity
-            if (Object.keys(reportData.stats.usersActivity).length > 0) {
-                const sortedUsers = Object.entries(reportData.stats.usersActivity)
-                    .sort(([,a], [,b]) => b.reservationCount - a.reservationCount);
-                
-                doc.autoTable({
-                    head: [['Email', 'Full Name', 'Scout Group', 'Reservations', 'Total Quantity']],
-                    body: sortedUsers.map(([, user]) => [
-                        user.email,
-                        user.fullName,
-                        user.scoutGroup,
-                        user.reservationCount.toString(),
-                        user.totalQuantity.toString()
-                    ]),
-                    startY: yPosition,
-                    theme: 'grid',
-                    headStyles: { fillColor: [0, 184, 148] },
-                    styles: { fontSize: 8 }
-                });
-            }
-            
-            // Save the PDF
-            const fileName = `Scout_Report_${startDateInput.value}_to_${endDateInput.value}.pdf`;
-            doc.save(fileName);
+            // Create a download link and trigger download
+            const link = document.createElement('a');
+            link.href = imgData;
+            link.download = `Scout_Report_${startDateInput.value}_to_${endDateInput.value}.jpeg`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
             
         } catch (error) {
-            console.error('Error generating PDF:', error);
-            alert('حدث خطأ في إنشاء ملف PDF. يرجى المحاولة مرة أخرى.');
+            console.error('Error generating image:', error);
+            alert('حدث خطأ في إنشاء ملف الصورة. يرجى المحاولة مرة أخرى.');
         } finally {
             showLoading(false);
         }
