@@ -1561,23 +1561,10 @@ function loadUserProducts(searchQuery = '', availableStock = null) {
     // Update global search query
     window.searchQuery = searchQuery;
     
-    let query = db.collection('products');
+    // Get all products without Firestore search constraints to avoid issues
+    let query = db.collection('products').orderBy('created_at', 'desc');
     
-    // Apply search if provided
-    if (searchQuery.trim()) {
-        // For Arabic search, use array-contains or where clause
-        // For English search, use >= and < for range query
-        const searchLower = searchQuery.toLowerCase().trim();
-        
-        // Create compound query for English search using range
-        query = query.where('name_en', '>=', searchLower)
-                    .where('name_en', '<', searchLower + '\uf8ff');
-    }
-    
-    // Apply ordering
-    query = query.orderBy('name_en').orderBy('created_at', 'desc');
-    
-    // Get total count first for pagination
+    // Get all products first, then filter client-side
     query.get()
         .then((querySnapshot) => {
             const allResults = [];
@@ -1585,18 +1572,33 @@ function loadUserProducts(searchQuery = '', availableStock = null) {
             querySnapshot.forEach((doc) => {
                 const product = doc.data();
                 
-                // Additional client-side filtering for Arabic text and refined English search
+                // Client-side filtering for both Arabic and English search
                 if (searchQuery.trim()) {
-                    const nameEnLower = product.name_en.toLowerCase();
-                    const nameAr = product.name_ar;
+                    const nameEnLower = (product.name_en || '').toLowerCase();
+                    const nameArOriginal = (product.name_ar || '');
+                    const nameArLower = nameArOriginal.toLowerCase();
                     const searchLower = searchQuery.toLowerCase();
+                    const searchOriginal = searchQuery.trim();
                     
-                    if (nameEnLower.includes(searchLower) || nameAr.includes(searchQuery)) {
+                    // Check various matching patterns for better Arabic/English support
+                    const englishMatch = nameEnLower.includes(searchLower);
+                    const arabicLowerMatch = nameArLower.includes(searchLower);
+                    const arabicOriginalMatch = nameArOriginal.includes(searchOriginal);
+                    
+                    // Check if search query matches English name or Arabic name (with multiple approaches)
+                    if (englishMatch || arabicLowerMatch || arabicOriginalMatch) {
                         allResults.push({id: doc.id, data: product});
                     }
                 } else {
                     allResults.push({id: doc.id, data: product});
                 }
+            });
+            
+            // Sort results alphabetically by Arabic name for better UX
+            allResults.sort((a, b) => {
+                const nameA = a.data.name_ar || '';
+                const nameB = b.data.name_ar || '';
+                return nameA.localeCompare(nameB, 'ar');
             });
             
             // Calculate pagination
